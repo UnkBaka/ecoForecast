@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    .gauge-wrap { position: relative; width: 160px; height: 110px; margin: 0 auto 8px; }
+    .gauge-wrap svg { width: 160px; height: 88px; overflow: visible; display: block; }
+    .gauge-num {
+        font-size: 1.6rem; font-weight: 900; line-height: 1;
+        position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+        background: white; padding: 2px 8px; border-radius: 6px;
+        white-space: nowrap;
+    }
+    .pollutant-card { border-left: 4px solid #dee2e6; border-radius: 0; }
+    .pollutant-card.good { border-left-color: #198754; }
+    .pollutant-card.mod  { border-left-color: #ffc107; }
+    .pollutant-card.bad  { border-left-color: #dc3545; }
+    .p-bar-track { background: #e9ecef; border-radius: 4px; height: 6px; margin-top: 6px; overflow: hidden; }
+    .p-bar-fill  { height: 100%; border-radius: 4px; transition: width 1s ease; }
+    .chart-container { position: relative; height: 240px; }
+    .animate-fade-in { animation: fadeIn 0.4s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    .col-lg-2dot4 { flex: 0 0 auto; width: 20%; }
+    @media (max-width: 992px) { .col-lg-2dot4 { width: 33.333%; } }
+    @media (max-width: 576px) { .col-lg-2dot4 { width: 50%; } }
+</style>
+
+<div class="container py-5 text-center">
+    <h1 class="display-4 fw-bold" style="color: #003366;">EcoForecast Malaysia</h1>
+    <p class="lead text-muted mb-5">AI-Powered Environmental Monitoring System</p>
+
+    <!-- SEARCH -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-md-8 col-lg-6 mb-4">
+            <div class="card h-100 p-4 shadow-sm border-0 bg-light">
+                <h3 class="text-primary"><i class="bi bi-wind"></i> AQI Report</h3>
+                <p>Check Real-Time Air Quality &amp; AI Insights</p>
+
+                {% if error_msg %}
+                <div class="alert alert-danger animate-fade-in" role="alert">{{ error_msg }}</div>
+                {% endif %}
+
+                <form action="{{ url_for('aqi.run') }}" method="POST" class="d-flex mt-3">
+                    {# CSRF token — requires Flask-WTF or a custom implementation #}
+                    {# {{ csrf_token() }} #}
+                    <input type="text" name="city" list="city-list" class="form-control me-2"
+                           placeholder="Start typing (e.g. Ipoh)..." autocomplete="off"
+                           value="{{ city if city else '' }}">
+                    <datalist id="city-list">
+                        {% for c in all_cities %}<option value="{{ c }}"></option>{% endfor %}
+                    </datalist>
+                    <button type="submit" class="btn btn-primary px-4">Check</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if show_aqi_section and aqi_data %}
+    <div id="aqi-result" class="row justify-content-center animate-fade-in">
+        <div class="col-md-10">
+            <div class="card shadow-lg border-0">
+
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="m-0">Live Report: {{ city }}</h4>
+                    <span class="badge bg-light text-dark">{{ aqi_data.time }}</span>
+                </div>
+
+                <!-- DATA SOURCE BAR -->
+                <div class="px-4 py-2 border-bottom d-flex flex-wrap align-items-center gap-3"
+                     style="background:#f8f9fa; font-size:0.82rem;">
+                    <span class="text-muted">
+                        <i class="bi bi-broadcast me-1 text-primary"></i>
+                        <strong>Data source:</strong>
+                        CAMS Global Atmosphere (Copernicus / Open-Meteo) — gridded model, updated hourly
+                    </span>
+                    <span class="vr d-none d-md-block"></span>
+                    {% if aqi_data.doe_station is defined and aqi_data.doe_station %}
+                    <span class="text-muted">
+                        <i class="bi bi-geo-alt-fill me-1 text-danger"></i>
+                        <strong>Nearest DOE station:</strong>
+                        {{ aqi_data.doe_station }}, {{ aqi_data.doe_state }}
+                        <span class="badge bg-secondary ms-1" style="font-size:0.72rem;">APIMS reference</span>
+                    </span>
+                    {% endif %}
+                    <span class="ms-auto">
+                        <a href="https://www.doe.gov.my/apims" target="_blank"
+                           class="text-decoration-none text-muted" style="font-size:0.78rem;">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>Check DOE APIMS
+                        </a>
+                    </span>
+                </div>
+
+                <div class="card-body p-4">
+
+                    <!-- TEMP / WIND / GAUGE -->
+                    <div class="row text-center align-items-center mb-4 pb-4 border-bottom">
+                        <div class="col-md-4 border-end">
+                            <small class="text-muted d-block text-uppercase fw-bold mb-1">
+                                <i class="bi bi-thermometer-half"></i> Temperature
+                            </small>
+                            <h2 class="fw-bold text-dark">{{ aqi_data.temp }}°C</h2>
+                        </div>
+                        <div class="col-md-4 border-end">
+                            <small class="text-muted d-block text-uppercase fw-bold mb-1">
+                                <i class="bi bi-wind"></i> Wind Speed
+                            </small>
+                            <h2 class="fw-bold text-dark">{{ aqi_data.wind }} km/h</h2>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block text-uppercase fw-bold mb-2">
+                                <i class="bi bi-speedometer2"></i> Air Quality (AQI)
+                            </small>
+                            {% set aqi = aqi_data.aqi | int %}
+                            {% set gc = '#198754' if aqi <= 50 else ('#ffc107' if aqi <= 100 else ('#fd7e14' if aqi <= 150 else '#dc3545')) %}
+                            <div class="gauge-wrap">
+                                <svg id="gaugesvg" viewBox="0 0 160 88" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M 16 80 A 64 64 0 0 1 144 80"
+                                          fill="none" stroke="#dee2e6" stroke-width="12" stroke-linecap="round"/>
+                                    <path d="M 16 80 A 64 64 0 0 1 24.6 48"
+                                          fill="none" stroke="#198754" stroke-width="12" stroke-linecap="round" opacity="0.3"/>
+                                    <path d="M 24.6 48 A 64 64 0 0 1 48 24.6"
+                                          fill="none" stroke="#ffc107" stroke-width="12" stroke-linecap="round" opacity="0.3"/>
+                                    <path d="M 48 24.6 A 64 64 0 0 1 80 16"
+                                          fill="none" stroke="#fd7e14" stroke-width="12" stroke-linecap="round" opacity="0.3"/>
+                                    <path d="M 80 16 A 64 64 0 0 1 144 80"
+                                          fill="none" stroke="#dc3545" stroke-width="12" stroke-linecap="round" opacity="0.3"/>
+                                    {#
+                                      Needle is drawn by JS (below) after the DOM is ready.
+                                      A default upright position is shown as fallback.
+                                    #}
+                                    <line id="gaugeNeedle" x1="80" y1="80" x2="80" y2="30"
+                                          stroke="{{ gc }}" stroke-width="3" stroke-linecap="round"/>
+                                    <circle cx="80" cy="80" r="5" fill="{{ gc }}"/>
+                                    <text x="10" y="88" fill="#198754" font-size="7" font-weight="bold">Good</text>
+                                    <text x="118" y="88" fill="#dc3545" font-size="7" font-weight="bold">Bad</text>
+                                </svg>
+                                <div class="gauge-num" style="color:{{ gc }};">{{ aqi }}</div>
+                            </div>
+                            <span class="badge rounded-pill px-3 py-2 mt-1"
+                                  style="background:{{ gc }}20; color:{{ gc }}; border:1px solid {{ gc }}; font-size:0.85rem;">
+                                {% if aqi <= 50 %}Good
+                                {% elif aqi <= 100 %}Moderate
+                                {% elif aqi <= 150 %}Unhealthy
+                                {% else %}Hazardous{% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- POLLUTANT BREAKDOWN -->
+                    {% if aqi_data.pollutants is defined and aqi_data.pollutants %}
+                    <div class="mb-4 pb-4 border-bottom text-start">
+                        <h5 class="fw-bold text-dark mb-3">
+                            <i class="bi bi-bar-chart-steps text-primary me-2"></i>Pollutant Breakdown
+                        </h5>
+                        <div class="row g-3">
+                            {% for p in aqi_data.pollutants %}
+                            {% set bc = 'good' if p.level == 'Good' else ('mod' if p.level == 'Moderate' else 'bad') %}
+                            {% set pc = '#198754' if p.level == 'Good' else ('#ffc107' if p.level == 'Moderate' else '#dc3545') %}
+                            <div class="col-6 col-md-4 col-lg-2dot4">
+                                <div class="card border-0 bg-light p-3 h-100 pollutant-card {{ bc }}">
+                                    <div class="text-muted small fw-bold text-uppercase mb-1">{{ p.icon }} {{ p.name }}</div>
+                                    <div class="fw-bold fs-5 text-dark">
+                                        {{ p.value }} <small class="text-muted" style="font-size:0.75rem;">{{ p.unit }}</small>
+                                    </div>
+                                    <div class="p-bar-track">
+                                        <div class="p-bar-fill" style="width:{{ p.pct }}%; background:{{ pc }};"></div>
+                                    </div>
+                                    <div class="small fw-bold mt-1" style="color:{{ pc }};">{{ p.level }}</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- AI ANALYSIS — powered by Groq LLaMA via /api/aqi_analysis -->
+                    <div class="row text-start px-2">
+                        <div class="col-12 mb-3 d-flex align-items-center justify-content-between">
+                            <h5 class="fw-bold text-dark m-0">
+                                <i class="bi bi-robot text-primary me-2"></i>AI Environmental Analysis
+                                <small class="text-muted fw-normal" style="font-size:0.75rem;">powered by LLaMA 3</small>
+                            </h5>
+                            <button class="btn btn-sm btn-outline-primary" id="refreshAiBtn" onclick="loadAiAnalysis()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                            </button>
+                        </div>
+                        <div class="col-12" id="aiAnalysisBox">
+                            <div class="text-center py-4 text-muted" id="aiLoadingSpinner">
+                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                Generating AI analysis…
+                            </div>
+                            <div id="aiAnalysisContent" style="display:none; font-size:0.95rem; line-height:1.7;"></div>
+                        </div>
+                    </div>
+                    <script>
+                    (function() {
+                        var _aqi  = {{ aqi_data.aqi }};
+                        var _temp = {{ aqi_data.temp }};
+                        var _wind = {{ aqi_data.wind }};
+                        var _city = {{ city | tojson }};
+
+                        window.loadAiAnalysis = function() {
+                            var spinner = document.getElementById('aiLoadingSpinner');
+                            var box     = document.getElementById('aiAnalysisContent');
+                            var btn     = document.getElementById('refreshAiBtn');
+                            spinner.style.display = 'block';
+                            box.style.display     = 'none';
+                            btn.disabled          = true;
+
+                            fetch('/api/aqi_analysis', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({city: _city, aqi: _aqi, temp: _temp, wind: _wind})
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                box.innerHTML       = data.html || '<p class="text-danger">Analysis unavailable.</p>';
+                                spinner.style.display = 'none';
+                                box.style.display     = 'block';
+                                btn.disabled          = false;
+                            })
+                            .catch(() => {
+                                box.innerHTML       = '<p class="text-danger">Could not connect to AI service. Please try again.</p>';
+                                spinner.style.display = 'none';
+                                box.style.display     = 'block';
+                                btn.disabled          = false;
+                            });
+                        };
+
+                        // Auto-load on page ready
+                        document.addEventListener('DOMContentLoaded', loadAiAnalysis);
+                    })();
+                    </script>
+
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- TREND CHART — newest → oldest matches the monitoring log table below -->
+    {% if history and history | length > 1 %}
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-10">
+            <div class="card shadow border-0">
+                <div class="card-header bg-dark text-white text-start">
+                    <h5 class="m-0"><i class="bi bi-graph-up me-2"></i>AQI Trend — {{ city }}</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="chart-container">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- AQI REFERENCE SCALE GUIDE -->
+    <div class="row justify-content-center mt-4 mb-5">
+        <div class="col-md-10">
+            <div class="card shadow border-0">
+                <div class="card-header bg-dark text-white text-start d-flex align-items-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <h5 class="m-0">AQI Reference Scale Guide</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0 align-middle text-center">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th>AQI Range</th>
+                                    <th>Category</th>
+                                    <th>Who is Affected</th>
+                                    <th>Outdoor Activity</th>
+                                    <th>Recommended Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge bg-success px-3 py-2 fs-6">0 – 50</span></td>
+                                    <td><strong class="text-success">Good</strong></td>
+                                    <td>No one at risk</td>
+                                    <td><i class="bi bi-check-circle-fill text-success"></i> Unrestricted</td>
+                                    <td>Enjoy outdoor activities freely. Open windows for ventilation.</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-warning text-dark px-3 py-2 fs-6">51 – 100</span></td>
+                                    <td><strong class="text-warning">Moderate</strong></td>
+                                    <td>Unusually sensitive people</td>
+                                    <td><i class="bi bi-exclamation-circle-fill text-warning"></i> Generally fine</td>
+                                    <td>Sensitive individuals should limit prolonged outdoor exertion.</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge px-3 py-2 fs-6" style="background:#fd7e14;">101 – 150</span></td>
+                                    <td><strong style="color:#fd7e14;">Unhealthy (Sensitive)</strong></td>
+                                    <td>Children, elderly, heart/lung patients</td>
+                                    <td><i class="bi bi-dash-circle-fill" style="color:#fd7e14;"></i> Reduce exertion</td>
+                                    <td>Sensitive groups should avoid prolonged outdoor activity. Others can continue with caution.</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-danger px-3 py-2 fs-6">151 – 200</span></td>
+                                    <td><strong class="text-danger">Unhealthy</strong></td>
+                                    <td>Everyone</td>
+                                    <td><i class="bi bi-x-circle-fill text-danger"></i> Avoid exertion</td>
+                                    <td>Everyone should reduce outdoor activities. Wear a mask if going outside.</td>
+                                </tr>
+                                <tr class="table-danger">
+                                    <td><span class="badge bg-danger px-3 py-2 fs-6">201 – 300</span></td>
+                                    <td><strong class="text-danger">Very Unhealthy</strong></td>
+                                    <td>Everyone — serious risk</td>
+                                    <td><i class="bi bi-x-circle-fill text-danger"></i> Stay indoors</td>
+                                    <td>Health alert. Avoid all outdoor exertion. N95 mask mandatory if outside.</td>
+                                </tr>
+                                <tr class="table-danger">
+                                    <td><span class="badge px-3 py-2 fs-6" style="background:#7b0000;">301 – 500</span></td>
+                                    <td><strong style="color:#7b0000;">Hazardous</strong></td>
+                                    <td>Entire population — emergency</td>
+                                    <td><i class="bi bi-x-circle-fill" style="color:#7b0000;"></i> Do not go outside</td>
+                                    <td>Emergency conditions. Remain indoors with air purifier. Seek medical attention if experiencing symptoms.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-light border-top text-muted" style="font-size:0.82rem;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        AQI (Air Quality Index) is calculated by Malaysia's Department of Environment based on concentrations of PM2.5, PM10, CO, NO₂, SO₂, and ground-level ozone. Scale follows the US EPA standard used by Open-Meteo.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>{# /container #}
+
+{# -----------------------------------------------------------------------
+   Chart — data already arrives newest-first from the DB query;
+   no reversal needed so chart and table share the same time direction.
+----------------------------------------------------------------------- #}
+{% if history and history | length > 1 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const labels   = {{ history | map(attribute='time') | list | tojson }};
+    const aqiVals  = {{ history | map(attribute='aqi')  | list | tojson }};
+    const tempVals = {{ history | map(attribute='temp') | list | tojson }};
+
+    new Chart(document.getElementById('trendChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'AQI',
+                    data: aqiVals,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13,110,253,0.08)',
+                    borderWidth: 2,
+                    pointBackgroundColor: aqiVals.map(v =>
+                        v <= 50 ? '#198754' : v <= 100 ? '#ffc107' : v <= 150 ? '#fd7e14' : '#dc3545'),
+                    pointRadius: 5, tension: 0.4, fill: true, yAxisID: 'yAqi'
+                },
+                {
+                    label: 'Temperature (°C)',
+                    data: tempVals,
+                    borderColor: '#dc3545', backgroundColor: 'transparent',
+                    borderWidth: 2, borderDash: [5, 5],
+                    pointBackgroundColor: '#dc3545', pointRadius: 3,
+                    tension: 0.4, yAxisID: 'yTemp'
+                }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { labels: { font: { size: 12 } } } },
+            scales: {
+                x: { ticks: { font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                yAqi:  { type: 'linear', position: 'left',  ticks: { callback: v => 'AQI ' + v }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                yTemp: { type: 'linear', position: 'right', ticks: { callback: v => v + '°C' },   grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+</script>
+{% endif %}
+
+{# -----------------------------------------------------------------------
+   Gauge needle — placed at the BOTTOM of the template so the SVG exists
+   in the DOM when this script runs.  Uses DOMContentLoaded as a safety
+   net in case the script is ever hoisted by a bundler.
+----------------------------------------------------------------------- #}
+{% if show_aqi_section and aqi_data %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var aqi      = {{ aqi_data.aqi | int }};
+        // Gauge arc sweeps from LEFT (180deg, AQI=0/Good) to RIGHT (0deg, AQI=300/Hazardous).
+        // Formula: start at 180deg and subtract proportion of the 180deg sweep.
+        var pct      = Math.min(aqi / 300 * 100, 100);
+        var angleDeg = 180 - (pct / 100 * 180);
+        var angleRad = angleDeg * Math.PI / 180;
+        var x2       = 80 + 50 * Math.cos(angleRad);
+        var y2       = 80 - 50 * Math.sin(angleRad);  // SVG y-axis points downward
+        var needle   = document.getElementById('gaugeNeedle');
+        if (needle) {
+            needle.setAttribute('x2', x2.toFixed(2));
+            needle.setAttribute('y2', y2.toFixed(2));
+        }
+    });
+</script>
+{% endif %}
+
+{% endblock %}

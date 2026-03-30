@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="px-4 py-5 my-5 text-center">
+    <h1 class="display-4 fw-bold text-primary">EcoForecast Malaysia</h1>
+    <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4">
+            Welcome to Malaysia's advanced AI-powered environmental monitoring system.
+            Access real-time air quality data, weather predictions, and historical analysis in one place.
+        </p>
+
+        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center flex-wrap">
+            <a href="{{ url_for('aqi.run') }}" class="btn btn-primary btn-lg px-4 gap-3">
+                <i class="bi bi-wind"></i> Check Air Quality
+            </a>
+
+            <a href="{{ url_for('weather.run') }}" class="btn btn-success btn-lg px-4">
+                <i class="bi bi-map"></i> View Live Map
+            </a>
+
+            <a href="{{ url_for('results_page') }}" class="btn btn-outline-secondary btn-lg px-4">
+                <i class="bi bi-graph-up"></i> Data Analysis
+            </a>
+
+            <a href="/footprint" class="btn btn-outline-success btn-lg px-4">
+                <i class="bi bi-tree"></i> Carbon Footprint
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="container px-4 py-5">
+    <div class="row g-4 py-5 row-cols-1 row-cols-lg-4">
+        <div class="col d-flex align-items-start">
+            <div class="icon-square bg-light text-dark flex-shrink-0 me-3">
+                <i class="bi bi-cpu fs-3"></i>
+            </div>
+            <div>
+                <h2>AI Predictions</h2>
+                <p>Our LSTM Neural Network predicts future temperature trends with high accuracy.</p>
+            </div>
+        </div>
+
+        <div class="col d-flex align-items-start">
+            <div class="icon-square bg-light text-dark flex-shrink-0 me-3">
+                <i class="bi bi-shield-check fs-3"></i>
+            </div>
+            <div>
+                <h2>Health Advice</h2>
+                <p>Get instant health recommendations based on current AQI and wind conditions.</p>
+            </div>
+        </div>
+
+        <div class="col d-flex align-items-start">
+            <div class="icon-square bg-light text-dark flex-shrink-0 me-3">
+                <i class="bi bi-clock-history fs-3"></i>
+            </div>
+            <div>
+                <h2>Historical Logs</h2>
+                <p>Track environmental changes over time with our detailed logging system.</p>
+            </div>
+        </div>
+
+        <div class="col d-flex align-items-start">
+            <div class="icon-square bg-light text-dark flex-shrink-0 me-3">
+                <i class="bi bi-tree fs-3 text-success"></i>
+            </div>
+            <div>
+                <h2>Carbon Footprint</h2>
+                <p>Calculate and compare your building's CO₂ emissions with smart reduction tips.</p>
+                <a href="/footprint" class="btn btn-sm btn-outline-success mt-1">
+                    Try Calculator →
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

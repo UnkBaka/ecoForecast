@@ -1,0 +1,741 @@
+import os
+import json
+import sqlite3
+import pandas as pd
+import requests
+from groq import Groq  # NEW IMPORT
+from flask import Flask, render_template, request, jsonify, send_from_directory
+from tensorflow.keras.models import load_model
+from datetime import datetime, timedelta
+
+# Import DB helpers
+from models.database import close_db, get_connection
+
+# Import Blueprints
+from controllers.aqi_controller import bp as aqi_bp
+from controllers.weather_controller import bp as weather_bp
+# Import the AI Service
+from prediction_service import get_forecast_by_name
+
+# --- Weather code from Meteo website ---
+WEATHER_DESCRIPTIONS = {
+    0: "Clear sky ☀️",
+    1: "Mainly clear 🌤️",
+    2: "Partly cloudy ⛅",
+    3: "Overcast ☁️",
+    45: "Fog 🌫️",
+    48: "Depositing rime fog 🌫️",
+    51: "Light drizzle 🌧️",
+    53: "Moderate drizzle 🌧️",
+    55: "Dense drizzle 🌧️",
+    56: "Light freezing drizzle ❄️",
+    57: "Dense freezing drizzle ❄️",
+    61: "Slight rain 🌧️",
+    63: "Moderate rain 🌧️",
+    65: "Heavy rain 🌧️",
+    66: "Light freezing rain ❄️🌧️",
+    67: "Heavy freezing rain ❄️🌧️",
+    71: "Slight snow fall ❄️",
+    73: "Moderate snow fall ❄️",
+    75: "Heavy snow fall ❄️",
+    77: "Snow grains ❄️",
+    80: "Slight rain showers 🌦️",
+    81: "Moderate rain showers 🌦️",
+    82: "Violent rain showers ⛈️",
+    85: "Slight snow showers ❄️",
+    86: "Heavy snow showers ❄️",
+    95: "Thunderstorm ⛈️",
+    96: "Thunderstorm with slight hail ⛈️🧊",
+    99: "Thunderstorm with heavy hail ⛈️🧊"
+}
+
+client = Groq(api_key="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")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "models", "ecoForecast.db")
+print(f"✅ Database connected at: {DB_PATH}")
+
+CITY_FILE = 'cities.json'
+
+if not os.path.exists(CITY_FILE):
+    default_cities = [
+        {"name": "Kuala Lumpur", "lat": 3.1478, "lng": 101.6953},
+        {"name": "George Town", "lat": 5.4144, "lng": 100.3292}
+    ]
+    with open(CITY_FILE, 'w') as f:
+        json.dump(default_cities, f)
+
+
+def create_app():
+    # Note: Based on your uploaded files, your HTML is in 'templates', not 'views'
+    app = Flask(__name__, template_folder="views", static_folder="static")
+
+    # Close database connection after each request
+    app.teardown_appcontext(close_db)
+
+    # --- MODEL LOADING ---
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    MODEL_PATH = os.path.join(BASE_DIR, "models", "weather_lstm_model.keras")
+
+    try:
+        app.my_lstm_model = load_model(MODEL_PATH)
+        print(f" Model loaded successfully")
+    except Exception as e:
+        app.my_lstm_model = None
+        print(f" Failed to load model: {e}")
+
+    # Register Blueprints
+    app.register_blueprint(aqi_bp)
+    app.register_blueprint(weather_bp)
+
+    # --- ROUTES ---
+    @app.route('/')
+    def index():
+        return render_template('landing.html')
+
+    @app.route('/footprint')
+    def footprint():
+        return render_template('footprint.html')
+
+    @app.route('/admin')
+    def admin_page():
+        key = request.args.get('key')
+        if key != "eco2026":
+            return "<h1>403 Forbidden</h1><p>Access Denied. Contact System Admin.</p>", 403
+        # Fetch current cities so the admin can see what's already there
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT name, lat, lon FROM locations")
+        cities = cur.fetchall()
+        conn.close()
+
+        return render_template('admin.html', cities=cities)
+
+    @app.route('/admin/add_city', methods=['POST'])
+    def add_new_city():
+        try:
+            data = request.json
+            name = data.get('name')
+            lat = float(data.get('lat'))
+            lng = float(data.get('lng'))
+
+            conn = get_connection()
+            cur = conn.cursor()
+            # INSERT OR IGNORE prevents duplicates if you click the same spot twice
+            cur.execute("INSERT OR IGNORE INTO locations (name, lat, lon) VALUES (?, ?, ?)", (name, lat, lng))
+            conn.commit()
+            conn.close()
+
+            print(f" Admin Added City: {name} ({lat}, {lng})")
+            return jsonify({"status": "success", "message": f"{name} added to database!"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    from flask import jsonify
+
+    @app.route('/get_heatmap_data')
+    def get_heatmap_data():
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            query = """
+            SELECT l.lat, l.lon, l.name, w.temperature, w.humidity
+            FROM locations l
+            JOIN weather_data w ON l.id = w.location_id
+            WHERE w.timestamp = (SELECT MAX(timestamp) FROM weather_data)
+            """
+            df = pd.read_sql(query, conn)
+            conn.close()
+
+            if df.empty:
+                return jsonify([])
+
+            heatmap_points = []
+            for _, row in df.iterrows():
+                temp = row['temperature']
+                humidity = row['humidity']
+                name = row['name']
+
+                # Heat advisory logic
+                if temp >= 37:
+                    advisory = "🚨 Extreme Heat! Stay indoors."
+                elif temp >= 34:
+                    advisory = "🔴 Very Hot! Seek shade immediately."
+                elif temp >= 31:
+                    advisory = "🟠 Hot & Humid. Limit outdoor activity."
+                elif temp >= 28:
+                    advisory = "🟡 Warm. Stay hydrated."
+                else:
+                    advisory = "🟢 Pleasant. Comfortable outdoors."
+
+                heatmap_points.append([
+                    row['lat'],
+                    row['lon'],
+                    temp,  # index 2
+                    humidity,  # index 3
+                    name,  # index 4
+                    advisory  # index 5
+                ])
+
+            return jsonify(heatmap_points)
+
+        except Exception as e:
+            print(f"❌ Database Error: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/admin/delete_city/<name>', methods=['POST'])
+    def delete_city(name):
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM locations WHERE name = ?", (name,))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": f"{name} removed."})
+
+    @app.route('/analysis')
+    def analysis_page():
+        return render_template('results.html')
+
+    @app.route('/get_locations')
+    def get_locations():
+        conn = sqlite3.connect(DB_PATH)
+        # We only need id, name, lat, and lon for the pins
+        query = "SELECT id, name, lat, lon FROM locations"
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return jsonify(df.to_dict(orient='records'))
+
+    @app.route('/get_history')
+    def get_history():
+        location = request.args.get('location', '')
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT DATE(w.timestamp) as date, 
+                       ROUND(AVG(w.temperature), 1) as temp,
+                       ROUND(AVG(w.aqi), 0) as aqi
+                FROM weather_data w
+                JOIN locations l ON w.location_id = l.id
+                WHERE l.name LIKE ?
+                GROUP BY DATE(w.timestamp)
+                ORDER BY date DESC
+                LIMIT 10
+            """, (f"%{location}%",))
+            rows = cur.fetchall()
+            conn.close()
+            return jsonify([{"date": r[0], "temp": r[1], "aqi": r[2] or 0} for r in rows])
+        except Exception as e:
+            print(f"❌ get_history error: {e}")
+            return jsonify([]), 500
+
+
+    @app.route('/results')
+    def results_page():
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+
+            # 1. Fetch the exact list of all cities (Should be 10)
+            cities = [row[0] for row in cur.execute("SELECT name FROM locations ORDER BY name ASC").fetchall()]
+
+            # 2. Fetch the actual database predictions
+            query = """
+                SELECT 
+                    l.name as city,
+                    p.predicted_value,          
+                    w.temperature as actual_value, 
+                    p.timestamp as pred_time,   
+                    w.weather_code,             
+                    p.predicted_weather_code,
+                    p.rain_chance    
+                FROM predictions p
+                JOIN locations l ON p.location_id = l.id
+                LEFT JOIN weather_data w ON p.location_id = w.location_id 
+                                        AND w.timestamp = p.timestamp
+                WHERE p.label = 'forecast'
+            """
+            raw_data = cur.execute(query).fetchall()
+
+            if not raw_data:
+                return render_template('results.html', weather=[])
+
+            # 3. Organize the raw data into a dictionary grouped by (Hour, City)
+            record_dict = {}
+            min_time = None
+
+            for row in raw_data:
+                city = row[0]
+                # Convert DB string to a Python datetime object safely
+                try:
+                    dt = datetime.strptime(row[3][:19], '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    continue
+
+                # Round down to the top of the hour (e.g., 16:28 -> 16:00)
+                hour_dt = dt.replace(minute=0, second=0, microsecond=0)
+
+                # Find the oldest record to know where to start our timeline
+                if min_time is None or hour_dt < min_time:
+                    min_time = hour_dt
+
+                # Save to dictionary
+                record_dict[(hour_dt, city)] = {
+                    'ai_temp': row[1],
+                    'act_temp': row[2],
+                    'act_weather': row[4],
+                    'ai_weather': row[5],
+                    'rain_chance': row[6]
+                }
+
+            # 4. Determine the timeline boundaries
+            if min_time is None:
+                min_time = datetime.now().replace(minute=0, second=0, microsecond=0)
+
+            max_time = datetime.now().replace(minute=0, second=0, microsecond=0)
+
+            # Safety catch for timezone differences
+            if max_time < min_time:
+                max_time = min_time
+
+            # 5. Generate the perfect 10-city hourly grid (Newest to Oldest)
+            final_data = []
+            current_time = max_time
+
+            while current_time >= min_time:
+                time_str = current_time.strftime('%Y-%m-%d %H:00')
+
+                for city in cities:
+                    key = (current_time, city)
+                    if key in record_dict:
+                        data = record_dict[key]
+                        raw_act_code = data['act_weather']
+                        raw_ai_code = data['ai_weather']
+
+                        act_text = WEATHER_DESCRIPTIONS.get(raw_act_code,
+                                                            "Unknown") if raw_act_code is not None else None
+                        ai_text = WEATHER_DESCRIPTIONS.get(raw_ai_code, "Unknown") if raw_ai_code is not None else None
+
+                        final_data.append((
+                            city,
+                            data['ai_temp'],
+                            data['act_temp'],
+                            time_str,
+                            act_text,
+                            ai_text,
+                            data['rain_chance']
+                        ))
+                    else:
+                        final_data.append((
+                            city, None, None, time_str, None, None, None
+                        ))
+
+                current_time -= timedelta(hours=1)
+
+            unique_dates = sorted(list(set(row[3][:10] for row in final_data)))
+
+            return render_template('results.html', weather=final_data, available_dates=unique_dates)
+
+        finally:
+            conn.close()
+
+    # --- API ROUTES ---
+    @app.route('/api/predict', methods=['GET'])
+    def predict_weather():
+        city = request.args.get('city', 'Kuala Lumpur')
+        result = get_forecast_by_name(city)
+
+        if isinstance(result, float):
+            return jsonify({
+                "status": "success",
+                "city": city,
+                "prediction": result,
+                "unit": "°C"
+            })
+        else:
+            return jsonify({"status": "error", "message": "Prediction failed"}), 400
+
+    @app.route('/api/predict_detailed')
+    def predict_detailed():
+        city = request.args.get('city', 'Kuala Lumpur')
+
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM locations WHERE name LIKE ?", (f"%{city}%",))
+        loc_row = cur.fetchone()
+
+        current_temp = 30.0
+        if loc_row:
+            cur.execute("SELECT temperature FROM weather_data WHERE location_id=? ORDER BY timestamp DESC LIMIT 1",
+                        (loc_row[0],))
+            row = cur.fetchone()
+            if row: current_temp = row[0]
+        conn.close()
+
+        target_temp = get_forecast_by_name(city)
+        if not isinstance(target_temp, float):
+            target_temp = current_temp
+
+        diff = target_temp - current_temp
+
+        detailed = [
+            {"time": "15 mins", "temp": round(current_temp + (diff * 0.25), 1)},
+            {"time": "30 mins", "temp": round(current_temp + (diff * 0.50), 1)},
+            {"time": "45 mins", "temp": round(current_temp + (diff * 0.75), 1)},
+            {"time": "60 mins", "temp": round(target_temp, 1)}
+        ]
+
+        return jsonify(detailed)
+
+    @app.route('/api/history/<int:location_id>')
+    def graph_data(location_id):
+        conn = get_connection()
+        try:
+            query = """
+                    SELECT timestamp, MAX(temperature) as temperature, MAX(aqi) as aqi 
+                    FROM weather_data 
+                    WHERE location_id = ? 
+                    GROUP BY timestamp 
+                    ORDER BY timestamp DESC LIMIT 50
+                """
+            df = pd.read_sql(query, conn, params=(location_id,))
+
+            if df.empty:
+                return jsonify({
+                    "labels": [], "temp": [], "aqi": [],
+                    "stats": {"avg_temp": 0, "max_temp": 0, "min_temp": 0, "max_aqi": 0}
+                })
+
+            df = df.iloc[::-1]
+
+            stats_query = """
+                    SELECT ROUND(AVG(temperature), 1) as avg_temp, 
+                           MAX(temperature) as max_temp, 
+                           MIN(temperature) as min_temp, 
+                           MAX(aqi) as max_aqi 
+                    FROM weather_data 
+                    WHERE location_id = ?
+                """
+            stats_df = pd.read_sql(stats_query, conn, params=(location_id,))
+
+            if not stats_df.empty and stats_df.iloc[0]['max_temp'] is not None:
+                stats = stats_df.to_dict('records')[0]
+            else:
+                stats = {"avg_temp": 0.0, "max_temp": 0.0, "min_temp": 0.0, "max_aqi": 0}
+
+            return jsonify({
+                "labels": pd.to_datetime(df['timestamp']).dt.strftime('%H:%M').tolist(),
+                "temp": df['temperature'].tolist(),
+                "aqi": df['aqi'].fillna(0).tolist(),
+                "stats": stats
+            })
+
+        except Exception as e:
+            print(f"❌ API Error: {e}")
+            return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
+
+    @app.route('/api/aqi_analysis', methods=['POST'])
+    def aqi_analysis():
+        try:
+            data = request.json
+            city = data.get('city', 'this location')
+            aqi = float(data.get('aqi', 0))
+            temp = float(data.get('temp', 0))
+            wind = float(data.get('wind', 0))
+
+            # Determine category label for context
+            if aqi <= 50:
+                category = "Good"
+            elif aqi <= 100:
+                category = "Moderate"
+            elif aqi <= 150:
+                category = "Unhealthy for Sensitive Groups"
+            elif aqi <= 200:
+                category = "Unhealthy"
+            else:
+                category = "Very Unhealthy / Hazardous"
+
+            prompt = f"""You are EcoForecast AI, an air quality assistant for Malaysia.
+
+    Current conditions in {city}:
+    - AQI: {aqi} ({category})
+    - Temperature: {temp}°C
+    - Wind Speed: {wind} km/h
+
+    Write a concise environmental analysis in exactly this HTML structure (no markdown, no extra tags):
+
+    <div class="row">
+      <div class="col-md-6 border-end pe-md-4 mb-4 mb-md-0">
+        <h6 class="text-uppercase text-muted fw-bold mb-2"><i class="bi bi-cloud-haze2 me-1"></i>Atmospheric Conditions</h6>
+        <p style="font-size:0.92rem;">[2-3 sentences about current AQI level, what is causing it, and how wind/temperature are affecting pollutant dispersal in {city}. Be specific to Malaysia's climate context.]</p>
+      </div>
+      <div class="col-md-6 ps-md-4">
+        <h6 class="text-uppercase text-muted fw-bold mb-2"><i class="bi bi-lungs me-1"></i>Health &amp; Activity Advisory</h6>
+        <ul style="font-size:0.92rem; padding-left:1.2rem;">
+          <li><strong>General Public:</strong> [specific advice]</li>
+          <li><strong>Sensitive Groups:</strong> [specific advice for elderly, children, asthma patients]</li>
+          <li><strong>Best Outdoor Time:</strong> [recommend specific time of day, e.g. early morning 6-8am, based on AQI and conditions]</li>
+          <li><strong>Precaution:</strong> [one practical tip e.g. mask type, hydration, indoor ventilation]</li>
+        </ul>
+      </div>
+    </div>
+
+    Rules:
+    - Write ONLY the HTML above. No preamble, no explanation, no markdown fences.
+    - Keep each point concise (1 sentence max per bullet).
+    - Be factual and helpful, not alarmist.
+    - Reference {city} and Malaysia context naturally."""
+
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system",
+                     "content": "You are a precise air quality analyst. Output only clean HTML as instructed. No "
+                                "markdown, no extra commentary."},
+                    {"role": "user", "content": prompt}
+                ],
+                model="llama-3.1-8b-instant",
+                max_tokens=600,
+                temperature=0.4,
+            )
+
+            raw = chat_completion.choices[0].message.content.strip()
+
+            # Strip any accidental markdown fences the model might add
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("html"):
+                    raw = raw[4:]
+                raw = raw.strip()
+            if raw.endswith("```"):
+                raw = raw[:-3].strip()
+
+            return jsonify({"html": raw})
+
+        except Exception as e:
+            print(f"[aqi_analysis] Error: {e}")
+            return jsonify(
+                {"html": "<p class='text-danger'>AI analysis temporarily unavailable. Please try again.</p>"}), 500
+
+    @app.route('/api/chat', methods=['POST'])
+    def ai_chat():
+        try:
+            data = request.json
+            user_query = data.get('query', '')
+            user_lat = data.get('lat')
+            user_lng = data.get('lng')
+
+            # Real data sent from the frontend (already fetched from Open-Meteo)
+            real_temp = data.get('real_temp')
+            real_rain = data.get('real_rain')
+            real_aqi = data.get('real_aqi')
+            real_condition = data.get('real_condition')
+            real_city = data.get('real_city')
+
+            # 1. Location context
+            user_location_context = ""
+            if user_lat and user_lng:
+                user_location_context = f"The user is at Lat: {user_lat}, Lng: {user_lng}."
+
+            # 2. If no clicked-point data, fetch live data for user's GPS location
+            if real_temp is None and user_lat and user_lng:
+                try:
+                    fallback_url = (
+                        f"https://api.open-meteo.com/v1/forecast"
+                        f"?latitude={user_lat}&longitude={user_lng}"
+                        f"&current_weather=true"
+                        f"&hourly=precipitation_probability"
+                        f"&timezone=auto"
+                    )
+                    fallback_aqi_url = (
+                        f"https://air-quality-api.open-meteo.com/v1/air-quality"
+                        f"?latitude={user_lat}&longitude={user_lng}"
+                        f"&current=us_aqi&timezone=auto"
+                    )
+                    import requests as _req
+                    w = _req.get(fallback_url, timeout=5).json()
+                    a = _req.get(fallback_aqi_url, timeout=5).json()
+                    current_hour = __import__('datetime').datetime.now().hour
+                    precip = w.get("hourly", {}).get("precipitation_probability", [0])
+                    real_rain = precip[current_hour] if current_hour < len(precip) else 0
+                    real_temp = w.get("current_weather", {}).get("temperature")
+                    real_condition = w.get("current_weather", {}).get("weathercode", "")
+                    real_aqi = a.get("current", {}).get("us_aqi", "Unknown")
+                    real_city = f"your GPS location ({user_lat:.3f}, {user_lng:.3f})"
+                except Exception:
+                    pass  # If fallback also fails, context will say no data
+
+            # 3. Build current location context from real data
+            if real_temp is not None and real_rain is not None:
+                current_location_context = (
+                    f"Current conditions at the user's location:\n"
+                    f"- Location: {real_city or 'Unknown'}\n"
+                    f"- Temperature: {real_temp}°C\n"
+                    f"- Condition: {real_condition}\n"
+                    f"- Rain probability: {real_rain}%\n"
+                    f"- AQI: {real_aqi}\n"
+                )
+            else:
+                current_location_context = "No location data available. Ask the user to click a point on the map."
+
+            # 3. Fetch DB data for all Malaysian cities as background context
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT l.name, w.temperature, w.aqi
+                FROM locations l
+                LEFT JOIN (
+                    SELECT location_id, temperature, aqi
+                    FROM weather_data
+                    WHERE id IN (SELECT MAX(id) FROM weather_data GROUP BY location_id)
+                ) w ON l.id = w.location_id
+            """)
+            latest_data = cur.fetchall()
+            conn.close()
+
+            malaysia_context = "Background data for other Malaysian cities:\n" + "\n".join(
+                [f"- {city}: {round(temp, 1)}°C, AQI {aqi}"
+                 for city, temp, aqi in latest_data if temp]
+            )
+
+            # 4. System prompt — LLaMA must only use real numbers, never invent them
+            system_instruction = f"""
+            You are EcoForecast AI, a weather assistant for Malaysia. You have access to real-time weather data.
+
+            USER'S CURRENT LOCATION DATA (from their GPS + map):
+            - Physical location: Lat {user_lat}, Lng {user_lng} (use this to name their area precisely, e.g. Jelutong, Gelugor, Georgetown)
+            - Temperature: {real_temp}°C
+            - Condition: {real_condition}
+            - Rain probability: {real_rain}% (ONLY use this number, never invent one)
+            - AQI: {real_aqi}
+
+            MALAYSIA CITY DATA (use this when user asks about other cities):
+            {malaysia_context}
+
+            RULES — follow every one strictly:
+            1. Rain percentage: ONLY quote {real_rain}% for the user's location. Never invent a number.
+            2. Other cities: When asked about a city like KL, Ipoh, Johor Bahru — look it up from the Malaysia city data above and answer with those numbers. Never say you don't have data if the city is listed above.
+            3. Location naming: Never say "Lat 5.399, Lng 100.317" — always translate coordinates to a real place name (e.g. "Georgetown, Penang").
+            4. Stay on topic: Always answer the weather question asked. Do not pivot to unrelated data.
+            5. Format: 1-2 short sentences. Friendly tone. Use relevant emojis. No bullet points.
+            6. If a city is not in your data, say "I don't have live data for that city right now" — don't make up numbers.
+            """
+
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_query}
+                ],
+                model="llama-3.1-8b-instant",
+            )
+
+            return jsonify({"response": chat_completion.choices[0].message.content})
+
+        except Exception as e:
+            print("AI Error:", e)
+            return jsonify({"response": "I'm having trouble connecting to my neural network. Try again!"}), 500
+
+    @app.route('/weather/predict_on_point', methods=['POST'])
+    def predict_on_point():
+        data = request.json
+        lat = data.get('latitude')
+        lng = data.get('longitude')
+        current_hour = datetime.now().hour
+
+        def get_nearest_city(lat, lng):
+            conn = get_connection()
+            cur = conn.cursor()
+
+            # Fetch all cities currently in your DB
+            cur.execute("SELECT name, lat, lon FROM locations")
+            db_cities = cur.fetchall()  # Returns a list of tuples like seed()
+            conn.close()
+
+            if not db_cities:
+                return "Kuala Lumpur"  # Fallback if DB is empty
+
+            # Use the same logic as before, but on the live DB list
+            closest = min(db_cities, key=lambda c: (float(lat) - c[1]) ** 2 + (float(lng) - c[2]) ** 2)
+            return closest[0]
+
+        city_name = get_nearest_city(lat, lng)
+        try:
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&current_weather=true&hourly=temperature_2m,relative_humidity_2m,weathercode,precipitation_probability&timezone=auto"
+            a_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lng}&current=us_aqi"
+
+            w_res = requests.get(url).json()
+            a_res = requests.get(a_url).json()
+
+            hourly = w_res.get('hourly', {})
+            current_w = w_res.get('current_weather', {})
+            time_list = hourly.get('time', [])
+
+            # ✅ Add precipitation_probability to your Open-Meteo URL
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&current_weather=true&hourly=temperature_2m,relative_humidity_2m,weathercode,precipitation_probability&timezone=auto"
+
+            # Then get current hour's rain probability
+            precip_list = hourly.get('precipitation_probability', [])
+            base_rain_chance = precip_list[current_hour] if current_hour < len(precip_list) else 0.0
+
+            forecast_list = []
+            offsets = [0, 1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144]
+
+            for offset in offsets:
+                i = current_hour + offset
+                if i < len(hourly.get('temperature_2m', [])):
+                    temp = hourly['temperature_2m'][i]
+                    raw_time = time_list[i]
+                    dt_obj = datetime.fromisoformat(raw_time)
+
+                    if offset == 0:
+                        display_time = "Now"
+                    elif offset < 24:
+                        display_time = dt_obj.strftime("%#I %p")  # Windows
+                        # display_time = dt_obj.strftime("%-I %p")  # Linux/Mac
+                    else:
+                        display_time = dt_obj.strftime("%a, %d %b")
+
+                    # Use real precipitation probability, fallback to base
+                    p = precip_list[i] if i < len(precip_list) else base_rain_chance
+
+                    forecast_list.append({
+                        "time": display_time,
+                        "temp": temp,
+                        "prob": round(float(p), 1)
+                    })
+
+            print(f"DEBUG rain chances: {[f['prob'] for f in forecast_list]}")
+
+            # Summary logic (OUTSIDE the for loop)
+            if base_rain_chance > 80:
+                summary = "⚠️ High probability of rain. Bring an umbrella!"
+            elif base_rain_chance > 40:
+                summary = "☁️ Unsettled weather. Might rain later."
+            else:
+                summary = "☀️ Mostly clear skies expected."
+
+            response_data = {
+                "temperature": current_w.get('temperature', 0),
+                "condition": WEATHER_DESCRIPTIONS.get(current_w.get('weathercode'), "Cloudy"),
+                "aqi": a_res.get('current', {}).get('us_aqi', 0),
+                "actual_location": f"Point ({lat}, {lng})",
+                "closest_city": city_name,
+                "rain_percentage": base_rain_chance,
+                "ai_summary": summary,
+                "forecast_data": forecast_list
+            }
+
+            print(f"DEBUG: Sending to UI -> {city_name} success")
+            return jsonify(response_data)
+
+        except Exception as e:
+            print(f"❌ CRITICAL ROUTE ERROR: {e}")
+            return jsonify({"error": str(e), "rain_percentage": 0, "forecast_data": []}), 500
+
+    return app
+
+
+if __name__ == "__main__":
+    app = create_app()
+    # use_reloader=False prevents the model from loading twice/crashing memory
+    app.run(debug=True, use_reloader=False)

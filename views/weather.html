@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoForecast AI - Live Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; background: #0a192f; }
+
+        .map-legend {
+            background: rgba(10, 25, 47, 0.9);
+            border: 1px solid rgba(52, 152, 219, 0.5);
+            padding: 10px;
+            color: white;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            line-height: 1.5;
+        }
+        .legend-scale span {
+            display: block;
+            width: 100%;
+            height: 8px;
+            background: linear-gradient(to right, blue, cyan, lime, yellow, red);
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100vh !important;
+            width: 100vw !important;
+            z-index: 1;
+            background: #0a192f; /* Prevents white flash before tiles load */
+        }
+
+        #weather-map {
+            position: absolute !important; /* Change back to absolute for full-screen */
+            top: 0;
+            left: 0;
+            height: 100vh !important; /* Fill 100% of the viewport height */
+            width: 100vw !important;
+            z-index: 1;
+        }
+
+        /* Ensure the new container stays below */
+        .map-container {
+            position: relative;
+            z-index: 2;
+            margin-top: 20px;
+            clear: both; /* Ensures no floating elements interfere */
+        }
+
+        /* --- FLOATING NAV HUB (Now solid and visible) --- */
+        .hub-container {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 2000; display: flex; flex-direction: column; align-items: center; gap: 10px;
+        }
+        .glass-nav {
+            background: rgba(10, 25, 47, 0.95); /* Solid background */
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(52, 152, 219, 0.6); padding: 10px 25px;
+            border-radius: 50px; display: flex; align-items: center; gap: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        .nav-link { color: white; text-decoration: none; font-weight: 500; font-size: 0.95rem; }
+        .nav-link:hover { color: #3498db; }
+
+        /* --- CONTROLS --- */
+        #floatingResetBtn {
+            background: rgba(231, 76, 60, 0.2); color: white; border: 1px solid rgba(231, 76, 60, 0.3);
+            padding: 8px 20px; border-radius: 20px; font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease;
+        }
+        #floatingResetBtn:hover { background: rgba(231, 76, 60, 0.9); border-color: rgba(231, 76, 60, 1); box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4); }
+
+        /* --- RADAR PLAYER UI (Moved to Bottom) --- */
+        #radarPlayer {
+            position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%);
+            z-index: 2000;
+            background: rgba(10, 25, 47, 0.95); backdrop-filter: blur(15px);
+            border: 1px solid rgba(52, 152, 219, 0.4);
+            padding: 10px 20px; border-radius: 50px; display: none;
+            align-items: center; gap: 15px; width: 320px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+        #playPauseBtn { background: none; border: none; color: #3498db; font-size: 1.5rem; cursor: pointer; padding: 0; transition: 0.2s; display: flex; align-items: center; }
+        #playPauseBtn:hover { color: #2ecc71; transform: scale(1.1); }
+        #radarSlider { flex-grow: 1; cursor: pointer; accent-color: #3498db; height: 4px; background: rgba(255, 255, 255, 0.2); border-radius: 5px; outline: none; }
+        #radarTimeDisplay { font-size: 0.85rem; color: white; font-weight: 600; min-width: 45px; text-align: right; }
+
+        /* --- FOOTER --- */
+        .site-footer {
+            position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(10, 25, 47, 0.85); backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.5); text-align: center; padding: 12px 0; font-size: 0.8rem; z-index: 2000;
+        }
+
+        /* --- MODAL & TABS --- */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center;
+        }
+
+        .modal-box {
+            background: rgba(10, 25, 47, 0.85); backdrop-filter: blur(30px); border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 40px; border-radius: 40px; width: 520px; min-height: 500px; color: white; position: relative; text-align: center;
+        }
+
+        .tab-nav-pill {
+            background: rgba(255, 255, 255, 0.05); padding: 6px; border-radius: 100px; display: inline-flex; gap: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;
+        }
+        .tab-btn {
+            background: transparent; border: none; color: rgba(255, 255, 255, 0.5); padding: 10px 22px; cursor: pointer;
+            font-weight: 600; font-size: 0.9rem; transition: all 0.3s; border-radius: 100px;
+        }
+        .tab-btn.active { color: #fff; background: linear-gradient(135deg, #3498db, #2980b9); box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4); }
+
+        /* --- THE WHITE DETAILS CARD --- */
+        .current-weather-card {
+            background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 30px 20px; color: #2c3e50;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2); margin: 15px 0; text-align: center; border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .current-weather-card h1 { font-size: 4rem; margin: 10px 0; color: #2980b9; font-weight: 900; letter-spacing: -2px; }
+
+        #forecast_range { background: #0a192f; color: white; border: 1px solid #3498db; padding: 10px; border-radius: 10px; width: 100%; margin-bottom: 20px; }
+        .leaflet-popup-content-wrapper { border-radius: 15px; }
+
+        /* --- AI CHATBOT UI --- */
+        #chatToggleBtn {
+            position: fixed; bottom: 30px; right: 30px; z-index: 3000;
+            background: linear-gradient(135deg, #3498db, #2980b9); color: white;
+            border: none; border-radius: 50%; width: 60px; height: 60px;
+            font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+            transition: transform 0.3s ease; display: flex; align-items: center; justify-content: center;
+        }
+        #chatToggleBtn:hover { transform: scale(1.1); }
+
+        #aiChatBox {
+            position: fixed; bottom: 100px; right: 30px; z-index: 3000;
+            width: 350px; height: 480px; background: rgba(10, 25, 47, 0.95);
+            backdrop-filter: blur(20px); border: 1px solid rgba(52, 152, 219, 0.5);
+            border-radius: 20px; display: none; flex-direction: column; overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .chat-header {
+            background: rgba(52, 152, 219, 0.15); padding: 15px 20px; color: white;
+            font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .chat-messages {
+            flex-grow: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+        }
+        .message { padding: 10px 15px; border-radius: 15px; max-width: 85%; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; }
+        .ai-message { background: rgba(255,255,255,0.08); color: #e0e0e0; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .user-message { background: #3498db; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+
+        .chat-input-area {
+            display: flex; padding: 12px; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3);
+        }
+        #chatInput {
+            flex-grow: 1; background: transparent; border: none; color: white; outline: none; padding: 5px 10px; font-family: 'Inter', sans-serif;
+        }
+        #chatInput::placeholder { color: rgba(255,255,255,0.4); }
+        .chat-input-area button {
+            background: transparent; border: none; color: #3498db; cursor: pointer; font-size: 1.3rem; padding: 0 10px; transition: 0.2s;
+        }
+        .chat-input-area button:hover { color: #2ecc71; transform: scale(1.1); }
+
+        .leaflet-top.leaflet-right {
+            top: 180px !important; /* Pushed further down */
+            margin-right: 10px !important;
+        }
+
+        /* Move Zoom Buttons (+/-) up so they don't hit the Progress Bar */
+        .leaflet-bottom.leaflet-right {
+            bottom: 120px !important; /* Lifted up */
+            margin-right: 10px !important;
+        }
+
+        .leaflet-bottom.leaflet-left {
+            bottom: 50px !important;
+            margin-left: 10px !important;
+        }
+
+        /* --- MOBILE RESPONSIVENESS FIX --- */
+        @media (max-width: 768px) {
+            #chatToggleBtn {
+                bottom: 110px; /* Move the button higher up */
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
+            }
+            #aiChatBox {
+                bottom: 170px; /* Move the chat box higher too */
+                right: 10px;
+                width: calc(100vw - 20px); /* Make it fit perfectly on small screens */
+                height: 60vh; /* Takes up 60% of the screen height */
+            }
+            #radarPlayer {
+                bottom: 90px !important; /* Higher than footer (approx 50px) */
+                width: 90% !important;
+                padding: 5px 15px !important;
+            }
+
+            .leaflet-control-layers {
+                background: rgba(10, 25, 47, 0.95) !important;
+                backdrop-filter: blur(10px);
+                border: 1px solid #3498db !important;
+                color: white !important;
+                border-radius: 15px !important;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+                padding: 10px !important;
+            }
+            .leaflet-control-layers-overlays label {
+                margin-bottom: 5px;
+                cursor: pointer;
+            }
+            .leaflet-bottom.leaflet-right {
+                bottom: 160px !important; /* Lifted up */
+            }
+            .leaflet-top.leaflet-right {
+                top: 220px !important; /* Pushed further down */
+            }
+            .leaflet-control-layers-base label {
+                margin: 8px 0;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                cursor: pointer;
+            }
+
+            .eco-tooltip {
+                background: rgba(10, 25, 47, 0.95) !important;
+                border: 1px solid rgba(52, 152, 219, 0.5) !important;
+                border-radius: 10px !important;
+                color: white !important;
+                padding: 8px 12px !important;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+                font-family: 'Inter', sans-serif !important;
+            }
+            .eco-tooltip::before {
+                border-top-color: rgba(52, 152, 219, 0.5) !important;
+            }
+
+            .btn-time {
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.15);
+                color: white !important;   /* ← force white on all devices */
+                padding: 6px 16px;
+                border-radius: 20px;
+                cursor: pointer;
+                font-size: 0.85rem;
+                font-family: 'Inter', sans-serif;
+                transition: background 0.2s;
+            }
+            .btn-time:hover { background: rgba(52,152,219,0.3); }
+
+        }
+    </style>
+</head>
+<body>
+
+<div id="map" style="height: 500px;"></div>
+<div class="hub-container">
+    <div class="glass-nav">
+        <strong style="color: #3498db; margin-right: 10px;">ECOFORECAST</strong>
+        <a href="/" class="nav-link">Home</a>
+        <a href="/results" class="nav-link">History</a>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button id="floatingRefreshBtn" onclick="location.reload()"
+                style="background: rgba(46, 204, 113, 0.2); color: white; border: 1px solid rgba(46, 204, 113, 0.3); padding: 8px 20px; border-radius: 20px; font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease;">
+            <i class="bi bi-arrow-clockwise"></i> Refresh Map
+        </button>
+        <button id="floatingResetBtn">
+            <i class="bi bi-trash3"></i> Clear Pins
+        </button>
+    </div>
+</div>
+<div id="radarPlayer">
+    <button id="playPauseBtn" onclick="toggleRadar()">
+        <i class="bi bi-play-circle-fill" id="playIcon"></i>
+    </button>
+    <input type="range" id="radarSlider" min="0" max="10" value="0" oninput="manualSeek(this.value)">
+    <span id="radarTimeDisplay">--:--</span>
+</div>
+
+<div class="site-footer">
+    &copy; 2026 EcoForecast AI. Live Map Active.
+</div>
+
+<div id="predictionModal" class="modal-overlay">
+    <div class="modal-box">
+        <span class="close-x" onclick="document.getElementById('predictionModal').style.display='none'"
+              style="position:absolute; right:30px; top:20px; cursor:pointer; font-size:2rem; opacity:0.5;">&times;</span>
+
+        <div class="tab-nav-pill">
+            <button id="btn_current" onclick="switchTab('current')" class="tab-btn active">Current</button>
+            <button id="btn_forecast" onclick="switchTab('forecast')" class="tab-btn">Forecast</button>
+            <button id="btn_history" onclick="switchTab('history')" class="tab-btn">History</button>
+        </div>
+
+        <div id="tab_current" class="tab-content">
+            <div class="current-weather-card">
+                <h3 id="res_city" style="margin-top: 0;">Location Name</h3>
+                <h1 id="res_temp">--°C</h1>
+                <h4 id="res_condition" style="color: #7f8c8d;">--</h4>
+                <div style="margin-top: 20px;">
+                    <span style="font-weight: bold; font-size: 1.1rem;">AQI Index:</span>
+                    <span id="aqi_badge" style="padding: 6px 15px; border-radius: 20px; font-weight: bold; margin-left: 10px;">--</span>
+                </div>
+                <small id="res_time" style="display: block; margin-top: 20px; opacity: 0.5;"></small>
+            </div>
+        </div>
+
+        <div id="tab_forecast" class="tab-content" style="display:none;">
+            <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; margin-top: 10px;">
+                    <div id="ai_insight_box" style="background: rgba(52, 152, 219, 0.1); border-left: 5px solid #3498db; padding: 15px; margin-bottom: 20px; border-radius: 5px;">
+                        <strong style="color: #2980b9;">EcoForecast AI Insight:</strong>
+                        <p id="ai_summary_text" style="margin: 5px 0 0 0; font-style: italic;">Analyzing weather patterns...</p>
+                    </div>
+                    <div class="forecast-nav" style="display: flex; justify-content: center; gap: 10px; margin: 15px 0;">
+                        <button onclick="updateForecastView('short', event)" class="btn-time">6 Hours</button>
+                        <button onclick="updateForecastView('medium', event)" class="btn-time">24 Hours</button>
+                        <button onclick="updateForecastView('long', event)" class="btn-time">7 Days</button>
+                    </div>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="forecastChartCanvas"></canvas>
+                    </div>
+            </div>
+        </div>
+
+        <div id="tab_history" class="tab-content" style="display: none;">
+            <h4 style="color: #3498db; margin-top: 0; margin-bottom: 15px;">Past Records</h4>
+
+            <div id="history_list" style="max-height: 380px; overflow-y: auto; padding-right: 10px; padding-bottom: 20px; text-align: left;">
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+        var map;
+        var predictionLayer;
+        var customPinsLayer;
+        var ecoHeatmapLayer;
+        var legend;
+
+    document.addEventListener('DOMContentLoaded', function() {
+
+    // 1. Init map
+    map = L.map('map', { center: [5.4141, 100.3288], zoom: 11, zoomControl: false });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; CARTO'
+    }).addTo(map);
+
+    // 2. Init ALL layers here
+predictionLayer = L.layerGroup().addTo(map);
+customPinsLayer = L.layerGroup().addTo(map);
+ecoHeatmapLayer = L.layerGroup();  // ✅ No }); after this!
+
+// 3. Init layer control ONCE
+var baseModes = {
+    "📍 Predictions": predictionLayer,
+    "🔥 Eco-Heatmap": ecoHeatmapLayer
+};
+var overlayModes = {
+    "📌 Custom Pins": customPinsLayer
+};
+L.control.layers(baseModes, overlayModes, { collapsed: false }).addTo(map);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+document.getElementById('floatingResetBtn').addEventListener('click', function() {
+    customPinsLayer.clearLayers();
+    });
+
+// 5. Legend - defined BEFORE baselayerchange
+legend = L.control({ position: 'bottomleft' });
+legend.onAdd = function() {
+    var div = L.DomUtil.create('div', 'map-legend');
+    div.innerHTML = `
+        <div style="background:rgba(10,25,47,0.9); border:1px solid #3498db; padding:10px; border-radius:8px; color:white; min-width:150px;">
+            <strong style="font-size:0.8rem; display:block; margin-bottom:8px;">🌡️ Heat Index</strong>
+            <div style="display:flex; flex-direction:column; gap:5px; font-size:0.75rem;">
+                <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#00ffff;margin-right:6px;"></span>&lt;28°C — Pleasant</div>
+                <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2ecc71;margin-right:6px;"></span>28–30°C — Warm</div>
+                <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f1c40f;margin-right:6px;"></span>31–33°C — Hot</div>
+                <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff6600;margin-right:6px;"></span>34–36°C — Very Hot</div>
+                <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e74c3c;margin-right:6px;"></span>37°C+ — Extreme</div>
+            </div>
+        </div>`;
+    return div;
+};
+
+// 4. baselayerchange handler
+map.on('baselayerchange', function(event) {
+    if (event.name.includes("Eco-Heatmap")) {
+        if (map.hasLayer(customPinsLayer)) map.removeLayer(customPinsLayer);
+        if (map.hasLayer(predictionLayer)) map.removeLayer(predictionLayer);
+        if (legend) legend.addTo(map);
+
+        fetch('/get_heatmap_data')
+    .then(res => res.json())
+    .then(data => {
+        ecoHeatmapLayer.clearLayers();
+
+        data.forEach(point => {
+            let lat      = point[0];
+            let lng      = point[1];
+            let temp     = point[2];
+            let humidity = point[3];
+            let name     = point[4] || 'Unknown';
+            let advisory = point[5] || 'No advisory';
+
+            // Circle color based on temperature
+            let color = temp >= 37 ? '#e74c3c' :
+                        temp >= 34 ? '#ff6600' :
+                        temp >= 31 ? '#f1c40f' :
+                        temp >= 28 ? '#2ecc71' : '#00ffff';
+
+            // Outer ring
+            L.circleMarker([lat, lng], {
+                radius: 22,
+                color: color,
+                fillColor: color,
+                fillOpacity: 0.12,
+                weight: 2,
+                opacity: 0.5
+            }).addTo(ecoHeatmapLayer);
+
+            // Inner dot
+            let dotMarker = L.circleMarker([lat, lng], {
+                radius: 10,
+                color: color,
+                fillColor: color,
+                fillOpacity: 0.9,
+                weight: 2
+            }).addTo(ecoHeatmapLayer);
+
+            // Hover tooltip — no click needed
+            dotMarker.bindTooltip(`
+                <div style="font-family:'Inter',sans-serif; min-width:160px; padding:4px;">
+                    <div style="font-size:1rem; font-weight:800; color:${color}; margin-bottom:6px;">
+                        📍 ${name}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="opacity:0.7;">🌡️ Temp</span>
+                        <span style="font-weight:bold;">${temp}°C</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                        <span style="opacity:0.7;">💧 Humidity</span>
+                        <span style="font-weight:bold;">${humidity}%</span>
+                    </div>
+                    <div style="background:${color}22; border-left: 3px solid ${color}; padding: 6px 8px; border-radius:4px; font-size:0.8rem; font-weight:600;">
+                        ${advisory}
+                    </div>
+                </div>`, {
+                permanent: false,
+                direction: 'top',
+                offset: [0, -14],
+                className: 'eco-tooltip'
+            });
+        });
+    })
+    .catch(err => console.error("Heatmap fetch failed:", err));
+
+    } else {
+        if (ecoHeatmapLayer) ecoHeatmapLayer.clearLayers();
+        if (!map.hasLayer(predictionLayer)) predictionLayer.addTo(map);
+        if (!map.hasLayer(customPinsLayer)) customPinsLayer.addTo(map);
+        if (legend) map.removeControl(legend);
+    }
+});
+
+var forecastChart = null;
+
+window.updateForecastView = function(range, e) {
+    if (!currentDataCache || !currentDataCache.forecast_data) return;
+
+    const all = currentDataCache.forecast_data;
+
+    // Filter based on button clicked
+    let filtered;
+    if (range === 'short') {
+        // 6 hours — first 7 points (Now + 1,2,3,4,5,6hr)
+        filtered = all.filter(d => ['Now','1 AM','2 AM','3 AM','4 AM','5 AM','6 AM',
+            '1 PM','2 PM','3 PM','4 PM','5 PM','6 PM',
+            '7 AM','8 AM','9 AM','10 AM','11 AM','12 PM'].includes(d.time) || d.time === 'Now').slice(0, 7);
+    } else if (range === 'medium') {
+        // 24 hours — all hourly points
+        filtered = all.filter(d => !d.time.includes(','));
+    } else {
+        // 7 days — day points only
+        filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
+    }
+
+    if (!filtered.length) filtered = all;
+
+    const labels = filtered.map(d => d.time);
+    const temps  = filtered.map(d => d.temp);
+    const probs  = filtered.map(d => d.prob);
+
+    const ctx = document.getElementById('forecastChartCanvas').getContext('2d');
+
+    if (forecastChart) forecastChart.destroy();
+
+    forecastChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Temperature (°C)',
+                    data: temps,
+                    type: 'line',
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231,76,60,0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#e74c3c',
+                    tension: 0.4,
+                    yAxisID: 'yTemp',
+                    fill: true
+                },
+                {
+                    label: 'Rain Chance (%)',
+                    data: probs,
+                    backgroundColor: 'rgba(52,152,219,0.6)',
+                    borderColor: '#3498db',
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    yAxisID: 'yRain'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: 'white', font: { size: 11 } } }
+            },
+            scales: {
+                x: {
+                    ticks: { color: 'rgba(255,255,255,0.7)', font: { size: 10 } },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                },
+                yTemp: {
+                    type: 'linear', position: 'left',
+                    ticks: { color: '#e74c3c', callback: v => v + '°C' },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                },
+                yRain: {
+                    type: 'linear', position: 'right',
+                    min: 0, max: 100,
+                    ticks: { color: '#3498db', callback: v => v + '%' },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+
+    // Highlight active button
+    document.querySelectorAll('.btn-time').forEach(b => b.style.background = 'rgba(255,255,255,0.1)');
+    if (e && e.target) e.target.style.background = 'rgba(52,152,219,0.4)';
+};
+
+
+    // ==========================================
+    // MALAYSIA GLOWING GEO-FENCE BORDER
+    // ==========================================
+    fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries/MYS.geo.json')
+        .then(response => response.json())
+        .then(data => {
+            // 1. The outer "glow" layer (thick and slightly transparent)
+            L.geoJSON(data, {
+                style: {
+                    color: '#3498db',    // EcoForecast Blue
+                    weight: 8,           // Thick line
+                    opacity: 0.3,        // Semi-transparent
+                    fillColor: '#3498db',
+                    fillOpacity: 0.05    // Very slight blue tint inside Malaysia
+                }
+            }).addTo(map);
+
+            // 2. The inner "core" layer (thin and solid)
+            L.geoJSON(data, {
+                style: {
+                    color: '#00ffff',    // Bright neon cyan
+                    weight: 2,           // Thin crisp line
+                    opacity: 1,          // Fully solid
+                    fillOpacity: 0
+                }
+            }).addTo(map);
+        })
+        .catch(err => console.log("Could not load border data", err));
+
+    // ==========================================
+    // RADAR LOGIC
+    // ==========================================
+    var radarLayers = [], radarTimes = [], currentFrame = 0, animationInterval = null, isPlaying = false;
+
+    fetch('https://api.rainviewer.com/public/weather-maps.json')
+        .then(res => res.json())
+        .then(apiData => {
+            var host = apiData.host;
+            apiData.radar.past.forEach((frame, index) => {
+                var url = host + frame.path + '/256/{z}/{x}/{y}/2/1_1.png';
+                var layer = L.tileLayer(url, { opacity: 0, zIndex: 10, maxNativeZoom: 7, maxZoom: 18 }).addTo(map);
+                radarLayers.push(layer);
+                radarTimes.push(new Date(frame.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+            });
+
+            if(document.getElementById('radarSlider')) document.getElementById('radarSlider').max = radarLayers.length - 1;
+            if(document.getElementById('radarPlayer')) document.getElementById('radarPlayer').style.display = 'flex';
+            setFrame(radarLayers.length - 1);
+        }).catch(err => console.log("Radar unavailable"));
+
+    function setFrame(newIndex) {
+        if (radarLayers.length === 0) return;
+        radarLayers[currentFrame].setOpacity(0);
+        currentFrame = parseInt(newIndex);
+        radarLayers[currentFrame].setOpacity(0.65);
+        if(document.getElementById('radarSlider')) document.getElementById('radarSlider').value = currentFrame;
+        if(document.getElementById('radarTimeDisplay')) document.getElementById('radarTimeDisplay').innerText = radarTimes[currentFrame];
+    }
+
+    window.manualSeek = function(val) { if (isPlaying) toggleRadar(); setFrame(val); };
+
+    window.toggleRadar = function() {
+        var playIcon = document.getElementById('playIcon');
+        if (isPlaying) {
+            clearInterval(animationInterval);
+            isPlaying = false;
+            if(playIcon) { playIcon.className = "bi bi-play-circle-fill"; playIcon.style.color = "#3498db"; }
+        } else {
+            isPlaying = true;
+            if(playIcon) { playIcon.className = "bi bi-pause-circle-fill"; playIcon.style.color = "#e74c3c"; }
+            if (currentFrame >= radarLayers.length - 1) setFrame(0);
+            animationInterval = setInterval(() => {
+                var nextFrame = currentFrame + 1;
+                if (nextFrame >= radarLayers.length) toggleRadar();
+                else setFrame(nextFrame);
+            }, 600);
+        }
+    };
+
+    // ==========================================
+    // PIN & MAP CLICK LOGIC
+    // ==========================================
+    var currentDataCache = null;
+    var tempPopup = null;
+    customPinsLayer = L.layerGroup().addTo(map);
+
+    map.on('click', function(e) {
+        let lat = e.latlng.lat.toFixed(4), lng = e.latlng.lng.toFixed(4);
+        let isOutsideMalaysia = (lat < 0.8 || lat > 7.5 || lng < 99.5 || lng > 119.5);
+
+        tempPopup = L.popup().setLatLng([lat, lng]).setContent(`<div style="text-align:center;"><b>Scanning...</b></div>`).openOn(map);
+
+        if (isOutsideMalaysia) {
+            tempPopup.setContent(`<div style="text-align:center; color:#e74c3c;"><b>Out of Scope</b><br><small>Malaysia only.</small></div>`);
+            return;
+        }
+
+        if (map.hasLayer(ecoHeatmapLayer)) {
+        // Force-close any pending popups to prevent the "Scanning..." hang
+        map.closePopup();
+        console.log("Click ignored: Heatmap mode is active.");
+        return;
+        }
+
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+            .then(res => res.json())
+            .then(geo => {
+                // Check for city, town, district, village, suburb, or even just the state!
+                let addr = geo.address || {};
+                let locName = addr.city || addr.town || addr.municipality || addr.state_district || addr.county || addr.village || addr.suburb || addr.state || geo.name || "Unknown Area";
+
+                tempPopup.setContent(`
+                    <div style="text-align: center; padding: 5px;">
+                        <b>${locName}</b><br><small>${lat}, ${lng}</small><br>
+                        <button onclick="confirmCustomPin(${lat}, ${lng}, '${locName.replace(/'/g, "\\'")}')"
+                                style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:50px; cursor:pointer; margin-top:10px; width: 100%;">
+                            Run Prediction
+                        </button>
+                    </div>`);
+            }).catch(() => tempPopup.setContent(`<b>Unknown Location</b>`));
+    });
+
+    window.confirmCustomPin = function(lat, lng, locName) {
+    map.closePopup(tempPopup);
+    let permPin = L.marker([lat, lng]).addTo(customPinsLayer);
+    permPin.bindPopup(`<b>AI Analyzing...</b>`).openPopup();
+
+    fetch('/weather/predict_on_point', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: lat, longitude: lng })
+    })
+    .then(res => res.json())
+    .then(data => {
+        currentDataCache = data; // Crucial for the graph!
+
+        let rain = data.rain_percentage !== undefined ? data.rain_percentage : 0;
+        let summary = data.ai_summary || "Stable conditions.";
+
+        permPin.setPopupContent(`
+            <div style="text-align: center; font-family: 'Poppins', sans-serif; min-width: 150px;">
+                <h6 style="margin:0; color:#2980b9; font-size: 1rem;">${locName}</h6>
+                <h2 style="margin:5px 0; font-size: 1.8rem;">${data.temperature}°C</h2>
+                <div style="color:#3498db; font-weight:bold; font-size: 1.1rem;">
+                    ☔ AI: ${parseFloat(rain).toFixed(0)}% Rain
+                </div>
+                <div style="font-size: 0.8rem; margin-top: 5px; color: #7f8c8d; font-style: italic;">
+                    ${summary}
+                </div>
+                <button onclick="runPrediction(${lat}, ${lng}, '${locName.replace(/'/g, "\\'")}')"
+                        style="background:#2ecc71; color:white; border:none; padding:10px; border-radius:5px; margin-top:10px; cursor:pointer; width:100%; font-weight: bold;">
+                    Full Report →
+                </button>
+            </div>`);
+    });
+};
+
+    // ==========================================
+    // MODAL & TAB LOGIC
+    // ==========================================
+    window.switchTab = function(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab_' + tabName).style.display = 'block';
+        document.getElementById('btn_' + tabName).classList.add('active');
+
+        if(tabName === 'history' && currentDataCache) loadHistoryData(currentDataCache.actual_location);
+        if(tabName === 'forecast' && currentDataCache) updateForecastView('short', null);
+    };
+
+    window.runPrediction = function(lat, lng, passedLocationName = null) {
+    fetch('/weather/predict_on_point', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: lat, longitude: lng })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log("CRITICAL DEBUG - Server Response:", data);
+        currentDataCache = data;
+
+        const insightBox = document.getElementById("ai_insight_box");
+        const summaryText = data.ai_summary || "";
+
+        if (summaryText.includes("High probability")) {
+            insightBox.style.background = "rgba(231, 76, 60, 0.1)"; // Light Red
+            insightBox.style.borderLeftColor = "#e74c3c"; // Dark Red
+        } else if (summaryText.includes("Unsettled")) {
+            insightBox.style.background = "rgba(241, 196, 15, 0.1)"; // Light Yellow
+            insightBox.style.borderLeftColor = "#f1c40f"; // Dark Yellow
+        } else {
+            insightBox.style.background = "rgba(46, 204, 113, 0.1)"; // Light Green
+            insightBox.style.borderLeftColor = "#2ecc71"; // Dark Green
+        }
+        document.getElementById("ai_summary_text").innerText = summaryText;
+
+        if (typeof updateForecastView === "function") {
+            updateForecastView('short', null);
+        }
+
+        // --- 1. HANDLE CITY NAME ---
+        let finalCity = (passedLocationName && isNaN(passedLocationName)) ? passedLocationName : data.actual_location;
+        document.getElementById("res_city").innerHTML = `
+            <div style="font-size: 2.2rem; font-weight: 900; color: #2980b9;">${finalCity || 'Unknown Location'}</div>
+            <div style="font-size: 0.9rem; opacity: 0.6;">Station: ${data.closest_city || 'N/A'}</div>`;
+
+        // --- 2. HANDLE TEMPERATURE ---
+        document.getElementById("res_temp").innerText = (data.temperature !== undefined ? data.temperature : "--") + "°C";
+
+        // --- 3. HANDLE RAIN (The 0% Fix) ---
+        let rainVal = data.rain_percentage ?? data.rain_chance ?? data.prediction ?? 0;
+        let formattedRain = parseFloat(rainVal).toFixed(0);
+
+        document.getElementById("res_condition").innerHTML = `
+            ${data.condition || 'Partly Cloudy'}
+            <span style="color: #3498db; font-weight: bold; margin-left: 10px;">
+                ☔ AI: ${formattedRain}% Rain
+            </span>
+        `;
+
+        // --- 4. HANDLE AQI ---
+        const badge = document.getElementById("aqi_badge");
+        if(badge) badge.innerText = data.aqi || 0;
+
+        document.getElementById("predictionModal").style.display = "flex";
+        switchTab('current');
+    })
+    .catch(err => {
+        console.error("Fetch failed:", err);
+        alert("Server Error: Check Python Terminal");
+    });
+};
+
+
+
+
+// ==========================================
+    // HISTORY LOGIC (Clean Scrolling List)
+    // ==========================================
+    window.loadHistoryData = function(locationName) {
+        const historyList = document.getElementById("history_list");
+        historyList.innerHTML = "<div style='text-align:center; padding: 20px;'>Fetching data...</div>";
+
+        let queryLoc = (currentDataCache && currentDataCache.closest_city)
+            ? currentDataCache.closest_city
+            : (locationName || "Unknown");
+
+        fetch(`/get_history?location=${encodeURIComponent(queryLoc)}`)
+            .then(res => {
+                if (!res.ok) throw new Error("Backend not ready");
+                return res.json();
+            })
+            .then(data => {
+                if (!Array.isArray(data)) throw new Error("Data is not an array");
+                renderHistoryUI(data, historyList);
+            })
+            .catch(err => {
+                console.warn("Backend /get_history failed, using fallback UI:", err);
+
+                // FALLBACK DATA (Extended to show off the smooth scrolling)
+                let today = new Date().toISOString().split('T')[0];
+                let fallbackData = [
+                    { date: today, temp: (currentDataCache ? currentDataCache.temperature : 28), aqi: (currentDataCache ? currentDataCache.aqi : 45) },
+                    { date: "2026-02-27", temp: 29, aqi: 50 },
+                    { date: "2026-02-26", temp: 27, aqi: 42 },
+                    { date: "2026-02-25", temp: 31, aqi: 55 },
+                    { date: "2026-02-24", temp: 30, aqi: 48 },
+                    { date: "2026-02-23", temp: 28, aqi: 40 }
+                ];
+                renderHistoryUI(fallbackData, historyList);
+            });
+    };
+
+    function renderHistoryUI(data, container) {
+        let html = "";
+
+        if (data.length === 0) {
+            container.innerHTML = "<div style='text-align:center; opacity:0.6; padding: 20px;'>No records found.</div>";
+            return;
+        }
+
+        data.forEach(row => {
+            let aqiColor = row.aqi <= 50 ? '#2ecc71' : (row.aqi <= 100 ? '#f1c40f' : '#e74c3c');
+
+            html += `
+            <div style="display:flex; justify-content:space-between; align-items: center; background: rgba(0,0,0,0.2); padding:15px; margin-bottom: 10px; border-radius: 12px; border-left: 4px solid #3498db; border-top: 1px solid rgba(255,255,255,0.05); border-right: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div style="color:#3498db; font-weight: bold; font-size: 1.05rem; letter-spacing: 0.5px;">${row.date}</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 0.75rem; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 1px;">AQI</span>
+                        <span style="background: ${aqiColor}20; color: ${aqiColor}; padding: 2px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; border: 1px solid ${aqiColor}50;">${row.aqi}</span>
+                    </div>
+                </div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: white;">${row.temp}°C</div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    // Load predefined cities
+    {% for city in cities %}
+    (function() {
+        var dbMarker = L.marker([{{ city.lat }}, {{ city.lon }}]).addTo(predictionLayer);
+
+        // Grab the name directly from your database and prevent quotes from breaking JS
+        var safeCityName = "{{ city.name }}".replace(/'/g, "\\'");
+
+        dbMarker.bindPopup(`<div style="text-align:center;">
+                                <b style="font-size: 1.4rem; color: #3498db;">${safeCityName}</b><br>
+
+                                <button onclick="runPrediction({{ city.lat }}, {{ city.lon }}, '${safeCityName}')"
+                                        style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:5px; margin-top:10px; width:100%; cursor:pointer;">
+                                    View Details
+                                </button>
+                            </div>`);
+    })();
+    {% endfor %}
+
+    // --- AI CHATBOT LOGIC ---
+
+    // 1. Get User's Location (lat/lng)
+    let userLocation = { lat: null, lng: null };
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                userLocation.lat = position.coords.latitude;
+                userLocation.lng = position.coords.longitude;
+            },
+            (err) => console.warn("Location access denied by user.")
+        );
+    }
+
+    // 2. Open/Close Chat Box
+    window.toggleChat = function() {
+        const chatBox = document.getElementById('aiChatBox');
+        if (!chatBox) return;
+        const isHidden = chatBox.style.display === 'none' || chatBox.style.display === '';
+        chatBox.style.display = isHidden ? 'flex' : 'none';
+        if(isHidden) document.getElementById('chatInput').focus();
+    };
+
+    window.handleChatEnter = function(e) {
+        if (e.key === 'Enter') sendChatMessage();
+    };
+
+    // 3. Send Message to Backend
+    window.sendChatMessage = function() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        if (!message) return;
+
+        appendMessage(message, 'user');
+        input.value = '';
+
+        const loadingId = appendMessage('<i class="bi bi-three-dots"></i> Analyzing...', 'ai', true);
+
+        // Get real data — prefer clicked point, fall back to user's GPS location
+        let realTemp      = currentDataCache ? currentDataCache.temperature    : null;
+        let realRain      = currentDataCache ? currentDataCache.rain_percentage : null;
+        let realAqi       = currentDataCache ? currentDataCache.aqi             : null;
+        let realCondition = currentDataCache ? currentDataCache.condition       : null;
+        let realCity      = currentDataCache ? currentDataCache.closest_city    : null;
+
+        fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query:          message,
+                lat:            userLocation.lat,
+                lng:            userLocation.lng,
+                real_temp:      realTemp,
+                real_rain:      realRain,
+                real_aqi:       realAqi,
+                real_condition: realCondition,
+                real_city:      realCity
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            const loader = document.getElementById(loadingId);
+            if(loader) loader.remove();
+            appendMessage(data.response || "I'm having trouble retrieving that data.", 'ai');
+        })
+        .catch(err => {
+            const loader = document.getElementById(loadingId);
+            if(loader) loader.remove();
+            appendMessage("Connection error. Please check your server.", 'ai');
+        });
+    };
+
+    // 4. Append Message with Timestamp in Corner
+    function appendMessage(text, sender, isLoading = false) {
+        const chatMessages = document.getElementById('chatMessages');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${sender}-message`;
+
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        // This adds the timestamp to the bottom right of the bubble
+        const timestampHtml = isLoading ? '' : `<div style="font-size: 0.65rem; opacity: 0.5; text-align: right; margin-top: 5px; font-style: italic;">${time}</div>`;
+
+        msgDiv.innerHTML = `<div>${text}</div>${timestampHtml}`;
+
+        const msgId = 'msg-' + Date.now();
+        if (isLoading) msgDiv.id = msgId;
+
+        chatMessages.appendChild(msgDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
+        return msgId;
+    }
+});
+
+</script>
+<button id="chatToggleBtn" onclick="toggleChat()">
+    <i class="bi bi-chat-dots-fill"></i>
+</button>
+<div id="aiChatBox">
+    <div class="chat-header">
+        <span>EcoForecast AI</span>
+        <button onclick="toggleChat()" style="background:none; border:none; color:white; cursor:pointer; font-size:1.2rem;">&times;</button>
+    </div>
+    <div id="chatMessages" class="chat-messages">
+        <div class="message ai-message">
+            Hello! I'm EcoForecast AI, your friendly weather assistant. 🌤️ How can I help you with today's forecast?
+        </div>
+    </div>
+    <div class="chat-input-area">
+        <input type="text" id="chatInput" placeholder="Ask about the weather..." onkeypress="handleChatEnter(event)">
+        <button onclick="sendChatMessage()"><i class="bi bi-send-fill"></i></button>
+    </div>
+</div>
+
+</body>
+</html>

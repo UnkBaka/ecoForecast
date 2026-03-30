@@ -1,0 +1,131 @@
+/* --- Standard Layout (For Index/Results) --- */
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    background-color: #f0f4f8;
+}
+
+main {
+    flex: 1 0 auto; /* This makes the footer 'sticky' on normal pages */
+    padding-top: 70px;
+}
+
+/* --- Map Mode Override (For Weather Page Only) --- */
+body.map-mode {
+    overflow: hidden; /* No scrollbars on the map */
+}
+
+body.map-mode main {
+    padding-top: 0 !important;
+}
+
+body.map-mode #weather-map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+}
+
+/* --- MODERNIZED TAB NAVIGATION --- */
+.tab-nav-pill {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 6px;
+    border-radius: 100px; /* Pill shape */
+    display: inline-flex;
+    gap: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 30px;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6) !important;
+    padding: 12px 24px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 100px;
+}
+
+.tab-btn:hover {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.tab-btn.active {
+    color: #fff !important;
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+    transform: scale(1.05);
+}
+
+/* Hoverable Navbar for Map Mode */
+body.map-mode .navbar {
+    background-color: rgba(0, 51, 102, 0.1) !important;
+    transition: background-color 0.4s ease;
+}
+
+body.map-mode .navbar:hover {
+    background-color: rgba(0, 51, 102, 0.9) !important;
+}
+
+/* Hoverable Footer for Map Mode */
+body.map-mode footer {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: transparent;
+    transition: all 0.4s ease;
+}
+
+body.map-mode footer:hover {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #333;
+}
+
+/* DEFAULT HEADER (Index Page) */
+.custom-nav {
+    background-color: #003366 !important; /* Solid Navy */
+    padding: 15px 0;
+    transition: all 0.4s ease;
+    border-bottom: 2px solid #0056b3;
+}
+
+/* MAP MODE HEADER (Weather Page Only) */
+body.map-mode .custom-nav {
+    background-color: rgba(0, 51, 102, 0) !important; /* Fully transparent */
+    border-bottom: 1px solid rgba(255, 255, 255, 0);
+}
+
+body.map-mode .custom-nav:hover {
+    background-color: rgba(0, 51, 102, 0.95) !important; /* Becomes solid blue on hover */
+    border-bottom: 1px solid #007bff;
+}
+
+.weather-icon-wrapper {
+    width: 40px;
+    height: 40px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #007bff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.temp-label {
+    font-weight: bold;
+    font-size: 12px;
+    color: #003366;
+}
+
+.sun { background-color: #fff9c4; border-color: #fbc02d; }
+.cloudy { background-color: #e1f5fe; border-color: #0288d1; }

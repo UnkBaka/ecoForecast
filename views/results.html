@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="display-5 fw-bold text-primary">AI & Data Analysis</h1>
+        <p class="lead text-muted">
+            Evaluating historical trends and AI model accuracy against real-world data.
+        </p>
+    </div>
+
+    <div class="row justify-content-center mb-5">
+        <div class="col-md-10">
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-3">
+                    <h5 class="m-0"><i class="bi bi-graph-up-arrow text-info me-2"></i> Temperature Trend Analysis</h5>
+
+                    <select id="citySelector" class="form-select form-select-sm w-auto bg-dark text-white border-secondary">
+                        {% for city, records in weather|groupby('0') %}
+                            <option value="{{ city }}">{{ city }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="card-body bg-white p-4">
+                    <div class="d-flex justify-content-between text-muted mb-2">
+                        <small id="chart-subtitle" class="text-primary fw-bold"><i class="bi bi-clock-history"></i> Showing last 24 hours</small>
+                        <small><i class="bi bi-info-circle"></i> Actual (Blue) vs AI Predicted (Dashed Red)</small>
+                    </div>
+                    <div style="height: 350px; position: relative;">
+                        <canvas id="tempChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+
+            <h4 class="fw-bold mb-3 text-dark"><i class="bi bi-robot text-primary me-2"></i> Detailed Prediction Logs</h4>
+
+            <div class="row mb-4 align-items-center justify-content-start">
+                <div class="col-md-6 col-lg-5">
+                    <div class="input-group shadow-sm rounded-pill overflow-hidden">
+                        <span class="input-group-text bg-primary text-white border-0">
+                            <i class="bi bi-calendar3"></i>
+                        </span>
+                        <input type="text" id="date-filter" class="form-control border-0 bg-white" placeholder="Filter logs & chart by date...">
+                        <button class="btn btn-danger border-0" type="button" id="clear-date">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            {% if weather %}
+            <div class="accordion shadow-sm rounded-4 overflow-hidden" id="cityAccordion">
+
+                {% for city, records in weather|groupby('0') %}
+                <div class="accordion-item border-0 border-bottom city-group">
+                    <h2 class="accordion-header" id="heading-{{ loop.index }}">
+                        <button class="accordion-button collapsed fs-5 fw-bold text-dark bg-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}">
+                            <i class="bi bi-geo-alt-fill text-primary me-3"></i> {{ city }}
+                        </button>
+                    </h2>
+                    <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse bg-light" data-bs-parent="#cityAccordion">
+                        <div class="accordion-body p-0">
+
+                            <div class="table-responsive shadow-inner" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-hover align-middle mb-0 text-center">
+                                    <thead class="table-light text-muted sticky-top" style="z-index: 2; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem;">
+                                        <tr>
+                                            <th scope="col" class="text-start ps-4">Recorded Time</th>
+                                            <th scope="col">Actual Temp</th>
+                                            <th scope="col">AI Predicted Temp</th>
+                                            <th scope="col">Actual Weather</th>
+                                            <th scope="col">AI Predicted Weather</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="border-top-0">
+                                        {% for row in records %}
+                                        <tr class="time-row">
+                                            <td class="text-start ps-4 text-nowrap time-cell"><strong>{{ row[3] }}</strong></td>
+                                            <td>{% if row[2] != None %}{{ row[2] }}°C{% else %}<span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>{% endif %}</td>
+                                            <td>
+                                                {% if row[1] != None %}
+                                                    <span class="badge rounded-pill bg-primary px-3 py-2" style="width: 80px;">{{ row[1] }}°C</span>
+                                                {% else %}
+                                                    <span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{% if row[4] != None %}{{ row[4] }}{% else %}<span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>{% endif %}</td>
+                                            <td>
+                                                {% if row[5] != None %}
+                                                    <span class="badge bg-info text-dark px-3 py-2 text-wrap d-inline-flex align-items-center justify-content-center" style="width: 200px; min-height: 40px; line-height: 1.4;">{{ row[5] }}</span>
+                                                {% else %}
+                                                    <span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-warning text-center mt-3 rounded-4 shadow-sm">
+                No prediction data available yet. Please wait for the background service to fetch data.
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // ==========================================
+        // 1. CHART.JS LOGIC WITH TIME FILTERING
+        // ==========================================
+        let tempChart = null;
+        const rawWeatherData = {{ weather | tojson | safe }};
+
+        // Track the current user selections
+        let currentCity = "";
+        let currentDateFilter = null; // null means 'last 24 hours'
+
+        function loadChart(selectedCity, dateStr) {
+            // First, filter by the chosen city
+            let cityData = rawWeatherData.filter(row => row[0] === selectedCity);
+
+            // Second, filter by time
+            if (dateStr) {
+                // User picked a specific date
+                cityData = cityData.filter(row => row[3].substring(0, 10) === dateStr);
+                $('#chart-subtitle').html(`<i class="bi bi-calendar-check"></i> Showing data for <strong>${dateStr}</strong>`);
+            } else {
+                // Default: Last 24 hours based on the user's current computer time
+                const now = new Date();
+                const past24h = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+
+                cityData = cityData.filter(row => {
+                    // Convert the database timestamp string into a JS Date object
+                    let rowDate = new Date(row[3].replace(/-/g, '/')); // replace ensures Safari compatibility
+                    return rowDate >= past24h && rowDate <= now;
+                });
+                $('#chart-subtitle').html(`<i class="bi bi-clock-history"></i> Showing last 24 hours`);
+            }
+
+            // Sort chronologically just in case
+            cityData.sort((a, b) => new Date(a[3].replace(/-/g, '/')) - new Date(b[3].replace(/-/g, '/')));
+
+            // Extract the columns for the graph
+            const labels = cityData.map(row => {
+                let d = new Date(row[3].replace(/-/g, '/'));
+                return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' });
+            });
+            const actualTemps = cityData.map(row => row[2]);
+            const aiTemps = cityData.map(row => row[1]);
+
+            const ctx = document.getElementById('tempChart').getContext('2d');
+            if (tempChart) tempChart.destroy();
+
+            // Handle empty data states gracefully
+            if (cityData.length === 0) {
+                $('#chart-subtitle').append(' <span class="text-danger">(No data found for this period)</span>');
+            }
+
+            tempChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Actual Temp (°C)',
+                            data: actualTemps,
+                            borderColor: '#0d6efd',
+                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3
+                        },
+                        {
+                            label: 'AI Predicted Temp (°C)',
+                            data: aiTemps,
+                            borderColor: '#dc3545',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            tension: 0.4,
+                            fill: false,
+                            pointRadius: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            ticks: { color: '#6c757d' },
+                            title: { display: true, text: 'Temperature (°C)' }
+                        },
+                        x: {
+                            ticks: { color: '#6c757d', maxTicksLimit: 8 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+        }
+
+        // Initialize City Selector and load the default 24h chart
+        const citySelector = document.getElementById('citySelector');
+        if (citySelector && citySelector.options.length > 0) {
+            currentCity = citySelector.options[0].value;
+            loadChart(currentCity, currentDateFilter); // Initial load
+
+            // Listen for City changes
+            citySelector.addEventListener('change', (e) => {
+                currentCity = e.target.value;
+                loadChart(currentCity, currentDateFilter);
+            });
+        }
+
+        // ==========================================
+        // 2. FLATPICKR / ACCORDION FILTER LOGIC
+        // ==========================================
+        let validDates = [];
+        try {
+            validDates = {{ available_dates | tojson | safe }};
+        } catch(e) {
+            console.warn("No available dates provided by backend.");
+        }
+
+        const calendar = flatpickr("#date-filter", {
+            enable: validDates,
+            dateFormat: "Y-m-d",
+            onChange: function(selectedDates, dateStr, instance) {
+                // 1. Update the Accordion
+                $('.city-group').each(function() {
+                    let hasVisibleRows = false;
+                    $(this).find('.time-row').each(function() {
+                        let rowTimeText = $(this).find('.time-cell').text().trim();
+                        let rowDate = rowTimeText.substring(0, 10);
+
+                        if (rowDate === dateStr) {
+                            $(this).show();
+                            hasVisibleRows = true;
+                        } else {
+                            $(this).hide();
+                        }
+                    });
+                    if (hasVisibleRows) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+
+                // 2. Update the Chart!
+                currentDateFilter = dateStr;
+                loadChart(currentCity, currentDateFilter);
+            }
+        });
+
+        // Clear Date Logic
+        $('#clear-date').on('click', function() {
+            calendar.clear();
+
+            // 1. Reset Accordion
+            $('.city-group, .time-row').show();
+
+            // 2. Reset Chart back to 24 hours
+            currentDateFilter = null;
+            loadChart(currentCity, currentDateFilter);
+        });
+    });
+</script>
+{% endblock %}
