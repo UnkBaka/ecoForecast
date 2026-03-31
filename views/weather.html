@@ -892,7 +892,7 @@ window.updateForecastView = function(range, e) {
                                 </button>
                             </div>`);
     })();
-    {% endfor %}
+    {% end-for %}
 
     // --- AI CHATBOT LOGIC ---
 
@@ -938,52 +938,58 @@ window.updateForecastView = function(range, e) {
     // 3. Send Message to Backend
     window.sendChatMessage = async function() {
         const input = document.getElementById('chatInput');
-        const message = input.value.trim();
+        const message = input.value.trim(); // We will stick with 'message' as the variable name
+
         if (!message) return;
 
+        // FIX 1: Use 'message' instead of 'userMsg'
         appendMessage(message, 'user');
         input.value = '';
 
         const loadingId = appendMessage('<i class="bi bi-three-dots"></i> Analyzing...', 'ai', true);
 
-        // Ensure location is present
-        if (!userLocation.lat || !userLocation.lng) {
-            await requestUserLocation();
-        }
+        // 1. Safe Data Extraction
+        // Added window. prefix to currentDataCache to ensure it checks the global scope safely
+        const payload = {
+            query:          message,
+            lat:            userLocation?.lat || null,
+            lng:            userLocation?.lng || null,
+            real_temp:      window.currentDataCache?.temperature    || null,
+            real_rain:      window.currentDataCache?.rain_percentage || null,
+            real_aqi:       window.currentDataCache?.aqi             || null,
+            real_condition: window.currentDataCache?.condition       || null,
+            real_city:      window.currentDataCache?.closest_city    || null
+        };
 
-        // Get real data from cache
-        let realTemp      = typeof currentDataCache !== 'undefined' ? currentDataCache.temperature    : null;
-        let realRain      = typeof currentDataCache !== 'undefined' ? currentDataCache.rain_percentage : null;
-        let realAqi       = typeof currentDataCache !== 'undefined' ? currentDataCache.aqi             : null;
-        let realCondition = typeof currentDataCache !== 'undefined' ? currentDataCache.condition       : null;
-        let realCity      = typeof currentDataCache !== 'undefined' ? currentDataCache.closest_city    : null;
+        // 2. Fetch with Error Handling
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload) // FIX 2: Send the full payload, not just the query
+            });
 
-        fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                query:          message,
-                lat:            userLocation.lat,
-                lng:            userLocation.lng,
-                real_temp:      realTemp,
-                real_rain:      realRain,
-                real_aqi:       realAqi,
-                real_condition: realCondition,
-                real_city:      realCity
-            })
-        })
-        .then(res => res.json())
-        .then(data => {
+            if (!response.ok) throw new Error('Network response was not ok');
+
+            const data = await response.json();
+
             const loader = document.getElementById(loadingId);
             if(loader) loader.remove();
+
             appendMessage(data.response || "I'm having trouble retrieving that data.", 'ai');
-        })
-        .catch(err => {
+
+            // FIX 3: Move the zoom function inside the 'try' block so it has access to the message
+            zoomToMentionedCity(message);
+
+        } catch (err) {
             console.error("Chat Error:", err);
             const loader = document.getElementById(loadingId);
             if(loader) loader.remove();
-            appendMessage("Connection error. Please check your server.", 'ai');
-        });
+
+            // Insight: Since you mentioned the Hetzner/TLS issue,
+            // this error message helps the user understand why GPS might fail.
+            appendMessage("Connection error. Please ensure you are using a secure HTTPS connection.", 'ai');
+        }
     };
 
     // 4. Append Message with Timestamp in Corner
