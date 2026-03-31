@@ -17,7 +17,7 @@ from controllers.weather_controller import bp as weather_bp
 # Import the AI Service
 from prediction_service import get_forecast_by_name
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='views')
 
 # --- Weather code from Meteo website ---
 WEATHER_DESCRIPTIONS = {
