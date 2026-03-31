@@ -93,7 +93,6 @@ def create_app():
     def index():
         return render_template('landing.html')
 
-
     @app.route('/footprint')
     def footprint():
         return render_template('footprint.html')
@@ -228,7 +227,6 @@ def create_app():
         except Exception as e:
             print(f"❌ get_history error: {e}")
             return jsonify([]), 500
-
 
     @app.route('/results')
     def results_page():
@@ -679,6 +677,22 @@ def create_app():
         except Exception as e:
             print("AI Error:", e)
             return jsonify({"response": "I'm having trouble connecting to my neural network. Try again!"}), 500
+
+    @app.route('/api/get_city_coords', methods=['GET'])
+    def get_city_coords():
+        city = request.args.get('city', '').strip()
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT name, lat, lon FROM locations WHERE name LIKE ? LIMIT 1",
+            (f"%{city}%",)
+        )
+        row = cur.fetchone()
+        conn.close()
+        if row:
+            return jsonify({"found": True, "name": row[0], "lat": row[1], "lon": row[2]})
+        return jsonify({"found": False})
+
     @app.route('/weather/predict_on_point', methods=['POST'])
     def predict_on_point():
         data = request.json

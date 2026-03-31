@@ -896,17 +896,32 @@ window.updateForecastView = function(range, e) {
 
     // --- AI CHATBOT LOGIC ---
 
-    // 1. Get User's Location (lat/lng)
+    // 1. Get User's Location — request immediately on page load
     let userLocation = { lat: null, lng: null };
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                userLocation.lat = position.coords.latitude;
-                userLocation.lng = position.coords.longitude;
-            },
-            (err) => console.warn("Location access denied by user.")
-        );
+
+    function requestUserLocation() {
+        return new Promise((resolve) => {
+            if (!navigator.geolocation) {
+                resolve(null);
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    userLocation.lat = position.coords.latitude;
+                    userLocation.lng = position.coords.longitude;
+                    resolve(userLocation);
+                },
+                (err) => {
+                    console.warn("Location access denied:", err.message);
+                    resolve(null);
+                },
+                { timeout: 8000, maximumAge: 60000 }
+            );
+        });
     }
+
+    // Request immediately when page loads
+    requestUserLocation();
 
     // 2. Open/Close Chat Box
     window.toggleChat = function() {
@@ -939,20 +954,37 @@ window.updateForecastView = function(range, e) {
         let realCondition = currentDataCache ? currentDataCache.condition       : null;
         let realCity      = currentDataCache ? currentDataCache.closest_city    : null;
 
-        fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                query:          message,
-                lat:            userLocation.lat,
-                lng:            userLocation.lng,
-                real_temp:      realTemp,
-                real_rain:      realRain,
-                real_aqi:       realAqi,
-                real_condition: realCondition,
-                real_city:      realCity
-            })
+        async function sendChatMessage(message) {
+    // If we still don't have location, try one more time before sending
+    if (!userLocation.lat || !userLocation.lng) {
+        await requestUserLocation();
+    }
+
+    // Get real data from cache — prefer clicked point, fall back to GPS fetch
+    let realTemp      = currentDataCache ? currentDataCache.temperature     : null;
+    let realRain      = currentDataCache ? currentDataCache.rain_percentage  : null;
+    let realAqi       = currentDataCache ? currentDataCache.aqi              : null;
+    let realCondition = currentDataCache ? currentDataCache.condition        : null;
+    let realCity      = currentDataCache ? currentDataCache.closest_city     : null;
+
+    const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            query:          message,
+            lat:            userLocation.lat,
+            lng:            userLocation.lng,
+            real_temp:      realTemp,
+            real_rain:      realRain,
+            real_aqi:       realAqi,
+            real_condition: realCondition,
+            real_city:      realCity
         })
+    });
+
+    const data = await response.json();
+    return data.response;
+}
         .then(res => res.json())
         .then(data => {
             const loader = document.getElementById(loadingId);
@@ -986,6 +1018,22 @@ window.updateForecastView = function(range, e) {
         chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
         return msgId;
     }
+
+    // After displaying the AI response, check if user mentioned a known city
+    function zoomToMentionedCity(userMessage) {
+        fetch('/api/get_city_coords?city=' + encodeURIComponent(userMessage))
+            .then(r => r.json())
+            .then(data => {
+                if (data.found && window.map) {
+                    // Assuming your map is a Leaflet map stored as window.map or map
+                    map.setView([data.lat, data.lon], 13, { animate: true });
+                }
+            })
+            .catch(() => {});  // Silently ignore if it fails
+    }
+
+    // Call this after sending each chat message:
+    zoomToMentionedCity(message);
 });
 
 </script>
