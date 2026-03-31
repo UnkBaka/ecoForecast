@@ -920,10 +920,9 @@ window.updateForecastView = function(range, e) {
         });
     }
 
-    // Request immediately when page loads
     requestUserLocation();
 
-    // 2. Open/Close Chat Box
+    // 2. UI Handlers
     window.toggleChat = function() {
         const chatBox = document.getElementById('aiChatBox');
         if (!chatBox) return;
@@ -937,7 +936,7 @@ window.updateForecastView = function(range, e) {
     };
 
     // 3. Send Message to Backend
-    window.sendChatMessage = function() {
+    window.sendChatMessage = async function() {
         const input = document.getElementById('chatInput');
         const message = input.value.trim();
         if (!message) return;
@@ -947,44 +946,32 @@ window.updateForecastView = function(range, e) {
 
         const loadingId = appendMessage('<i class="bi bi-three-dots"></i> Analyzing...', 'ai', true);
 
-        // Get real data — prefer clicked point, fall back to user's GPS location
-        let realTemp      = currentDataCache ? currentDataCache.temperature    : null;
-        let realRain      = currentDataCache ? currentDataCache.rain_percentage : null;
-        let realAqi       = currentDataCache ? currentDataCache.aqi             : null;
-        let realCondition = currentDataCache ? currentDataCache.condition       : null;
-        let realCity      = currentDataCache ? currentDataCache.closest_city    : null;
+        // Ensure location is present
+        if (!userLocation.lat || !userLocation.lng) {
+            await requestUserLocation();
+        }
 
-        async function sendChatMessage(message) {
-    // If we still don't have location, try one more time before sending
-    if (!userLocation.lat || !userLocation.lng) {
-        await requestUserLocation();
-    }
+        // Get real data from cache
+        let realTemp      = typeof currentDataCache !== 'undefined' ? currentDataCache.temperature    : null;
+        let realRain      = typeof currentDataCache !== 'undefined' ? currentDataCache.rain_percentage : null;
+        let realAqi       = typeof currentDataCache !== 'undefined' ? currentDataCache.aqi             : null;
+        let realCondition = typeof currentDataCache !== 'undefined' ? currentDataCache.condition       : null;
+        let realCity      = typeof currentDataCache !== 'undefined' ? currentDataCache.closest_city    : null;
 
-    // Get real data from cache — prefer clicked point, fall back to GPS fetch
-    let realTemp      = currentDataCache ? currentDataCache.temperature     : null;
-    let realRain      = currentDataCache ? currentDataCache.rain_percentage  : null;
-    let realAqi       = currentDataCache ? currentDataCache.aqi              : null;
-    let realCondition = currentDataCache ? currentDataCache.condition        : null;
-    let realCity      = currentDataCache ? currentDataCache.closest_city     : null;
-
-    const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            query:          message,
-            lat:            userLocation.lat,
-            lng:            userLocation.lng,
-            real_temp:      realTemp,
-            real_rain:      realRain,
-            real_aqi:       realAqi,
-            real_condition: realCondition,
-            real_city:      realCity
+        fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query:          message,
+                lat:            userLocation.lat,
+                lng:            userLocation.lng,
+                real_temp:      realTemp,
+                real_rain:      realRain,
+                real_aqi:       realAqi,
+                real_condition: realCondition,
+                real_city:      realCity
+            })
         })
-    });
-
-    const data = await response.json();
-    return data.response;
-}
         .then(res => res.json())
         .then(data => {
             const loader = document.getElementById(loadingId);
@@ -992,6 +979,7 @@ window.updateForecastView = function(range, e) {
             appendMessage(data.response || "I'm having trouble retrieving that data.", 'ai');
         })
         .catch(err => {
+            console.error("Chat Error:", err);
             const loader = document.getElementById(loadingId);
             if(loader) loader.remove();
             appendMessage("Connection error. Please check your server.", 'ai');
