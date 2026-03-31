@@ -17,8 +17,6 @@ from controllers.weather_controller import bp as weather_bp
 # Import the AI Service
 from prediction_service import get_forecast_by_name
 
-app = Flask(__name__, template_folder='views')
-
 # --- Weather code from Meteo website ---
 WEATHER_DESCRIPTIONS = {
     0: "Clear sky ☀️",
@@ -94,6 +92,7 @@ def create_app():
     @app.route('/')
     def index():
         return render_template('landing.html')
+
 
     @app.route('/footprint')
     def footprint():
@@ -738,9 +737,6 @@ def create_app():
 
 
 if __name__ == "__main__":
-    # This port logic is perfect for Render
+    app = create_app()
     port = int(os.environ.get("PORT", 10000))
-
-    # On Render, we don't usually need debug=True in the final code,
-    # but use_reloader=False is a smart move for your ML model memory!
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=port)
