@@ -892,7 +892,7 @@ window.updateForecastView = function(range, e) {
                                 </button>
                             </div>`);
     })();
-    {% end-for %}
+    {% endfor %}
 
     // --- AI CHATBOT LOGIC ---
 
@@ -995,12 +995,12 @@ window.updateForecastView = function(range, e) {
     // 4. Append Message with Timestamp in Corner
     function appendMessage(text, sender, isLoading = false) {
         const chatMessages = document.getElementById('chatMessages');
+        if (!chatMessages) return;
+
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${sender}-message`;
 
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        // This adds the timestamp to the bottom right of the bubble
         const timestampHtml = isLoading ? '' : `<div style="font-size: 0.65rem; opacity: 0.5; text-align: right; margin-top: 5px; font-style: italic;">${time}</div>`;
 
         msgDiv.innerHTML = `<div>${text}</div>${timestampHtml}`;
@@ -1009,7 +1009,7 @@ window.updateForecastView = function(range, e) {
         if (isLoading) msgDiv.id = msgId;
 
         chatMessages.appendChild(msgDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
+        chatMessages.scrollTop = chatMessages.scrollHeight;
         return msgId;
     }
 
@@ -1019,15 +1019,11 @@ window.updateForecastView = function(range, e) {
             .then(r => r.json())
             .then(data => {
                 if (data.found && window.map) {
-                    // Assuming your map is a Leaflet map stored as window.map or map
-                    map.setView([data.lat, data.lon], 13, { animate: true });
+                    window.map.setView([data.lat, data.lon], 13, { animate: true });
                 }
             })
-            .catch(() => {});  // Silently ignore if it fails
+            .catch(() => {});
     }
-
-    // Call this after sending each chat message:
-    zoomToMentionedCity(message);
 });
 
 </script>
