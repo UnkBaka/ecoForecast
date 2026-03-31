@@ -526,19 +526,59 @@ def create_app():
             user_lat = data.get('lat')
             user_lng = data.get('lng')
 
-            # Real data sent from the frontend (already fetched from Open-Meteo)
+            # Real data from the frontend (currentDataCache from predict_on_point)
             real_temp = data.get('real_temp')
             real_rain = data.get('real_rain')
             real_aqi = data.get('real_aqi')
             real_condition = data.get('real_condition')
             real_city = data.get('real_city')
 
-            # 1. Location context
-            user_location_context = ""
+            # ------------------------------------------------------------------
+            # 1. Reverse-geocode the user's GPS to get neighbourhood-level name
+            #    Uses OpenStreetMap Nominatim — free, no API key needed.
+            # ------------------------------------------------------------------
+            neighbourhood_label = None
             if user_lat and user_lng:
-                user_location_context = f"The user is at Lat: {user_lat}, Lng: {user_lng}."
+                try:
+                    rev_url = (
+                        f"https://nominatim.openstreetmap.org/reverse"
+                        f"?lat={user_lat}&lon={user_lng}"
+                        f"&format=json&zoom=16&addressdetails=1"
+                    )
+                    rev_res = requests.get(
+                        rev_url,
+                        timeout=4,
+                        headers={"User-Agent": "EcoForecast/1.0"}
+                    ).json()
+                    addr = rev_res.get("address", {})
+                    # Try from most specific to least specific
+                    neighbourhood = (
+                            addr.get("neighbourhood") or
+                            addr.get("suburb") or
+                            addr.get("quarter") or
+                            addr.get("village") or
+                            addr.get("city_district") or
+                            addr.get("town") or
+                            addr.get("city") or
+                            ""
+                    )
+                    city_name = addr.get("city") or addr.get("town") or addr.get("county") or ""
+                    state_name = addr.get("state") or ""
 
-            # 2. If no clicked-point data, fetch live data for user's GPS location
+                    if neighbourhood and city_name and neighbourhood != city_name:
+                        neighbourhood_label = f"{neighbourhood}, {city_name}, {state_name}"
+                    elif city_name:
+                        neighbourhood_label = f"{city_name}, {state_name}"
+
+                except Exception as geo_err:
+                    print(f"[chat] Reverse geocode failed: {geo_err}")
+                    neighbourhood_label = None
+
+            user_place = neighbourhood_label or f"Lat {user_lat}, Lng {user_lng}" if user_lat else "Unknown location"
+
+            # ------------------------------------------------------------------
+            # 2. If no clicked-point data, fetch live data for user's GPS
+            # ------------------------------------------------------------------
             if real_temp is None and user_lat and user_lng:
                 try:
                     fallback_url = (
@@ -553,33 +593,39 @@ def create_app():
                         f"?latitude={user_lat}&longitude={user_lng}"
                         f"&current=us_aqi&timezone=auto"
                     )
-                    import requests as _req
-                    w = _req.get(fallback_url, timeout=5).json()
-                    a = _req.get(fallback_aqi_url, timeout=5).json()
-                    current_hour = __import__('datetime').datetime.now().hour
-                    precip = w.get("hourly", {}).get("precipitation_probability", [0])
-                    real_rain = precip[current_hour] if current_hour < len(precip) else 0
-                    real_temp = w.get("current_weather", {}).get("temperature")
-                    real_condition = w.get("current_weather", {}).get("weathercode", "")
-                    real_aqi = a.get("current", {}).get("us_aqi", "Unknown")
-                    real_city = f"your GPS location ({user_lat:.3f}, {user_lng:.3f})"
-                except Exception:
-                    pass  # If fallback also fails, context will say no data
+                    w_fb = requests.get(fallback_url, timeout=5).json()
+                    a_fb = requests.get(fallback_aqi_url, timeout=5).json()
+                    cur_hour = datetime.now().hour
+                    precip_fb = w_fb.get("hourly", {}).get("precipitation_probability", [0])
+                    real_rain = precip_fb[cur_hour] if cur_hour < len(precip_fb) else 0
+                    real_temp = w_fb.get("current_weather", {}).get("temperature")
+                    real_condition = w_fb.get("current_weather", {}).get("weathercode", "")
+                    real_aqi = a_fb.get("current", {}).get("us_aqi", "Unknown")
+                    real_city = user_place
+                except Exception as fb_err:
+                    print(f"[chat] Fallback weather fetch failed: {fb_err}")
 
-            # 3. Build current location context from real data
+            # ------------------------------------------------------------------
+            # 3. Current location context
+            # ------------------------------------------------------------------
             if real_temp is not None and real_rain is not None:
                 current_location_context = (
-                    f"Current conditions at the user's location:\n"
-                    f"- Location: {real_city or 'Unknown'}\n"
+                    f"USER'S CURRENT LOCATION: {user_place}\n"
+                    f"- Nearest monitored city: {real_city or 'Unknown'}\n"
                     f"- Temperature: {real_temp}°C\n"
                     f"- Condition: {real_condition}\n"
                     f"- Rain probability: {real_rain}%\n"
                     f"- AQI: {real_aqi}\n"
                 )
             else:
-                current_location_context = "No location data available. Ask the user to click a point on the map."
+                current_location_context = (
+                    f"USER'S LOCATION: {user_place}\n"
+                    "No live weather data available yet. Ask the user to click a point on the map."
+                )
 
-            # 3. Fetch DB data for all Malaysian cities as background context
+            # ------------------------------------------------------------------
+            # 4. Malaysia city DB context
+            # ------------------------------------------------------------------
             conn = get_connection()
             cur = conn.cursor()
             cur.execute("""
@@ -594,33 +640,31 @@ def create_app():
             latest_data = cur.fetchall()
             conn.close()
 
-            malaysia_context = "Background data for other Malaysian cities:\n" + "\n".join(
-                [f"- {city}: {round(temp, 1)}°C, AQI {aqi}"
-                 for city, temp, aqi in latest_data if temp]
+            malaysia_context = "MALAYSIA CITY DATA:\n" + "\n".join(
+                [f"- {c}: {round(t, 1)}°C, AQI {a}" for c, t, a in latest_data if t]
             )
 
-            # 4. System prompt — LLaMA must only use real numbers, never invent them
+            # List of known cities for Rule 3 below
+            known_cities = [row[0] for row in latest_data if row[1]]
+            known_cities_str = ", ".join(known_cities)
+
+            # ------------------------------------------------------------------
+            # 5. System prompt
+            # ------------------------------------------------------------------
             system_instruction = f"""
-            You are EcoForecast AI, a weather assistant for Malaysia. You have access to real-time weather data.
+    You are EcoForecast AI, a precise weather assistant for Malaysia.
 
-            USER'S CURRENT LOCATION DATA (from their GPS + map):
-            - Physical location: Lat {user_lat}, Lng {user_lng} (use this to name their area precisely, e.g. Jelutong, Gelugor, Georgetown)
-            - Temperature: {real_temp}°C
-            - Condition: {real_condition}
-            - Rain probability: {real_rain}% (ONLY use this number, never invent one)
-            - AQI: {real_aqi}
+    {current_location_context}
 
-            MALAYSIA CITY DATA (use this when user asks about other cities):
-            {malaysia_context}
+    {malaysia_context}
 
-            RULES — follow every one strictly:
-            1. Rain percentage: ONLY quote {real_rain}% for the user's location. Never invent a number.
-            2. Other cities: When asked about a city like KL, Ipoh, Johor Bahru — look it up from the Malaysia city data above and answer with those numbers. Never say you don't have data if the city is listed above.
-            3. Location naming: Never say "Lat 5.399, Lng 100.317" — always translate coordinates to a real place name (e.g. "Georgetown, Penang").
-            4. Stay on topic: Always answer the weather question asked. Do not pivot to unrelated data.
-            5. Format: 1-2 short sentences. Friendly tone. Use relevant emojis. No bullet points.
-            6. If a city is not in your data, say "I don't have live data for that city right now" — don't make up numbers.
-            """
+    STRICT RULES — never break these:
+    1. USER LOCATION: Always refer to the user's location as "{user_place}" — never say raw coordinates like "Lat 5.39, Lng 100.31". Say "Based on your location in {user_place}..." when answering questions about their area.
+    2. RAIN AT USER LOCATION: The rain probability at the user's location is exactly {real_rain}%. Never invent, estimate, or change this number.
+    3. OTHER CITIES: If the user asks about a city, check the MALAYSIA CITY DATA above. Known cities are: {known_cities_str}. If the city is listed, answer using ONLY those numbers. If it is NOT listed (e.g. Butterworth, Sungai Petani, Subang), say "I don't have live data for [city] right now, but I can tell you about nearby [nearest known city]."
+    4. FORMAT: 1-2 short friendly sentences. Use emojis naturally. No bullet points in replies.
+    5. STAY ON TOPIC: Answer exactly what was asked. Do not change the subject.
+    """
 
             chat_completion = client.chat.completions.create(
                 messages=[
@@ -635,7 +679,6 @@ def create_app():
         except Exception as e:
             print("AI Error:", e)
             return jsonify({"response": "I'm having trouble connecting to my neural network. Try again!"}), 500
-
     @app.route('/weather/predict_on_point', methods=['POST'])
     def predict_on_point():
         data = request.json
