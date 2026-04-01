@@ -497,10 +497,11 @@ window.updateForecastView = function(range, e) {
     if (range === 'short') {
         filtered = all.filter(d => {
             if (d.time === 'Now') return true;
-            const hourMatch = d.time.match(/^(\d{2}):00$/);
-            if (hourMatch) {
-                const hour = parseInt(hourMatch[1]);
-                // Handle wrap-around (e.g., if it's 22:00, show 23:00, 00:00, etc.)
+
+            // Extract numbers from string (handles "18:00" or "2026-04-01 18:00:00")
+            const match = d.time.match(/(\d{2}):00/);
+            if (match) {
+                const hour = parseInt(match[1]);
                 const diff = (hour - currentHour + 24) % 24;
                 return diff > 0 && diff <= 6;
             }
@@ -508,8 +509,10 @@ window.updateForecastView = function(range, e) {
         });
     } else if (range === 'medium') {
         // --- 24 HOURS: Today 00:00 to 23:59 ---
-        // Filters for any string formatted as HH:00 (ignores "Now" or "Mon, 01")
-        filtered = all.filter(d => d.time.match(/^\d{2}:00$/) || d.time === 'Now');
+        filtered = all.filter(d => {
+            if (d.time === 'Now') return true;
+            // Includes everything that looks like an hour (HH:00)
+            return d.time.match(/\d{2}:00/);
     } else {
         // --- 7 DAYS: Keep your existing logic for multi-day view ---
         filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
