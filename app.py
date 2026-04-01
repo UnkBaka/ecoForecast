@@ -639,7 +639,10 @@ def create_app():
             conn.close()
 
             malaysia_context = "MALAYSIA CITY DATA:\n" + "\n".join(
-                [f"- {c}: {round(t, 1)}°C, AQI {a}" for c, t, a in latest_data if t]
+                [
+                    f"- {c}: {round(t, 1)}°C" + (f", AQI {a}" if a and int(a) > 0 else ", AQI not available")
+                    for c, t, a in latest_data if t
+                ]
             )
 
             # List of known cities for Rule 3 below
@@ -669,12 +672,15 @@ def create_app():
 
             STRICT RULES — never break these:
             1. LOCATION: Always refer to the user as being in "{user_place}". Never show raw coordinates.
-            2. RAIN: The rain probability at user's location is exactly {real_rain}%. Never invent this number.
-            3. CITY LOOKUP: When user mentions any city or abbreviation (SP=Sungai Petani, KL=Kuala Lumpur, PG=Penang, JB=Johor Bahru, KB=Kota Bharu, KK=Kota Kinabalu), search MALAYSIA CITY DATA carefully for a full or partial match. If found, answer with that city's exact numbers. Only say no data if truly not in the list.
-            4. CONDITION: Always use plain English condition. Current condition at user location is "{condition_text}". Never say "condition rating of X".
-            5. OFF-TOPIC: If the user asks anything unrelated to weather, air quality, or health impacts of air — reply ONLY with: "I can only help with weather and air quality questions! 🌤️ Try asking about the weather in your area or any Malaysian city."
-            6. FORMAT: 1-2 short friendly sentences. Emojis welcome. No bullet points.
-            """
+            2. RAIN: The rain probability at user's location is exactly {real_rain}%. Never invent this number. 3. 
+            CITY LOOKUP: When user asks about a city, find it in MALAYSIA CITY DATA. Answer with the temperature. If 
+            AQI shows "not available" for that city, say "AQI data isn't available for [city] right now" — never say 
+            AQI is 0 unless the data explicitly shows a non-zero value. 4. CONDITION: Always use plain English 
+            condition. Current condition at user location is " {condition_text}". Never say "condition rating of X". 
+            5. OFF-TOPIC: If the user asks anything unrelated to weather, air quality, or health impacts of air — 
+            reply ONLY with: "I can only help with weather and air quality questions! 🌤️ Try asking about the 
+            weather in your area or any Malaysian city." 6. FORMAT: 1-2 short friendly sentences. Emojis welcome. No 
+            bullet points."""
 
             chat_completion = client.chat.completions.create(
                 messages=[

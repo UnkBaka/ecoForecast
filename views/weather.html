@@ -1022,17 +1022,28 @@ window.updateForecastView = function(range, e) {
     const greetings = ['hi','hello','hey','ok','okay','yes','no','thanks',
                        'thank you','sure','great','good','nice','cool'];
     const cleaned = userMessage.trim().toLowerCase();
-
-    // Skip greetings or very short messages
     if (greetings.includes(cleaned) || cleaned.length < 4) return;
 
-    // Only zoom if message contains weather-related intent
     const locationTriggers = ['rain','weather','temperature','aqi','hot',
-                               'cold','humid','forecast','haze','wind','area'];
+                               'cold','humid','forecast','haze','wind','area',
+                               'about','how','in','lah'];
     const hasLocationIntent = locationTriggers.some(t => cleaned.includes(t));
     if (!hasLocationIntent) return;
 
-    fetch('/api/get_city_coords?city=' + encodeURIComponent(userMessage))
+    // Strip filler words to extract just the city name
+    const fillers = ['how about','how is','how are','what about','weather in',
+                     'weather at','rain in','aqi in','about','how','will it',
+                     'rain','weather','temperature','aqi','ltr','later','today',
+                     'tomorrow','the','in','at','lah','?','!','.'];
+    let cityGuess = cleaned;
+    fillers.forEach(f => {
+        cityGuess = cityGuess.replace(new RegExp('\\b' + f + '\\b', 'gi'), '');
+    });
+    cityGuess = cityGuess.trim();
+
+    if (!cityGuess || cityGuess.length < 2) return;
+
+    fetch('/api/get_city_coords?city=' + encodeURIComponent(cityGuess))
         .then(r => r.json())
         .then(data => {
             if (data.found && typeof map !== 'undefined') {
