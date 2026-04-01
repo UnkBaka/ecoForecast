@@ -812,7 +812,7 @@ window.updateForecastView = function(range, e) {
 
 
 
-// ==========================================
+    // ==========================================
     // HISTORY LOGIC (Clean Scrolling List)
     // ==========================================
     window.loadHistoryData = function(locationName) {
@@ -894,131 +894,148 @@ window.updateForecastView = function(range, e) {
     })();
     {% endfor %}
 
+    // ==========================================
     // --- AI CHATBOT LOGIC ---
+    // ==========================================
 
-    // 1. Get User's Location — request immediately on page load
-    let userLocation = { lat: null, lng: null };
+let conversationHistory = [];
 
-    function requestUserLocation() {
-        return new Promise((resolve) => {
-            if (!navigator.geolocation) {
-                resolve(null);
-                return;
-            }
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    userLocation.lat = position.coords.latitude;
-                    userLocation.lng = position.coords.longitude;
-                    resolve(userLocation);
-                },
-                (err) => {
-                    console.warn("Location access denied:", err.message);
-                    resolve(null);
-                },
-                { timeout: 8000, maximumAge: 60000 }
-            );
-        });
-    }
+// 1. Get User's Location — request immediately on page load
+let userLocation = { lat: null, lng: null };
 
-    requestUserLocation();
-
-    // 2. UI Handlers
-    window.toggleChat = function() {
-        const chatBox = document.getElementById('aiChatBox');
-        if (!chatBox) return;
-        const isHidden = chatBox.style.display === 'none' || chatBox.style.display === '';
-        chatBox.style.display = isHidden ? 'flex' : 'none';
-        if(isHidden) document.getElementById('chatInput').focus();
-    };
-
-    window.handleChatEnter = function(e) {
-        if (e.key === 'Enter') sendChatMessage();
-    };
-
-    // 3. Send Message to Backend
-        window.sendChatMessage = async function() {
-        const input = document.getElementById('chatInput');
-        const message = input.value.trim();
-
-        if (!message) return;
-
-        appendMessage(message, 'user');
-        input.value = '';
-
-        // Intercept greetings — reply instantly without calling API
-        const greetings = ['hi','hello','hey','hii','helo','howdy','sup'];
-        if (greetings.includes(message.trim().toLowerCase())) {
-            appendMessage(
-                "Hello! 👋 Ask me about the weather anywhere in Malaysia — " +
-                "your area, KL, Penang, Johor Bahru, or any city! 🌤️",
-                'ai'
-            );
+function requestUserLocation() {
+    return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+            resolve(null);
             return;
         }
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                userLocation.lat = position.coords.latitude;
+                userLocation.lng = position.coords.longitude;
+                resolve(userLocation);
+            },
+            (err) => {
+                console.warn("Location access denied:", err.message);
+                resolve(null);
+            },
+            { timeout: 8000, maximumAge: 60000 }
+        );
+    });
+}
 
-        // Zoom map if a city is mentioned (runs at same time as API call)
-        zoomToMentionedCity(message);
+requestUserLocation();
 
-        const loadingId = appendMessage('<i class="bi bi-three-dots"></i> Analyzing...', 'ai', true);
+// 2. UI Handlers
+window.toggleChat = function() {
+    const chatBox = document.getElementById('aiChatBox');
+    if (!chatBox) return;
+    const isHidden = chatBox.style.display === 'none' || chatBox.style.display === '';
+    chatBox.style.display = isHidden ? 'flex' : 'none';
+    if (isHidden) document.getElementById('chatInput').focus();
+};
 
-        const payload = {
-            query:          message,
-            lat:            userLocation?.lat || null,
-            lng:            userLocation?.lng || null,
-            real_temp:      window.currentDataCache?.temperature     || null,
-            real_rain:      window.currentDataCache?.rain_percentage || null,
-            real_aqi:       window.currentDataCache?.aqi             || null,
-            real_condition: window.currentDataCache?.condition       || null,
-            real_city:      window.currentDataCache?.closest_city    || null
-        };
+window.handleChatEnter = function(e) {
+    if (e.key === 'Enter') sendChatMessage();
+};
 
-        try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+// 3. Send Message to Backend
+window.sendChatMessage = async function() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
 
-            if (!response.ok) throw new Error('Network response was not ok');
+    if (!message) return;
 
-            const data = await response.json();
+    appendMessage(message, 'user');
+    input.value = '';
 
-            const loader = document.getElementById(loadingId);
-            if (loader) loader.remove();
-
-            appendMessage(data.response || "I'm having trouble retrieving that data.", 'ai');
-
-        } catch (err) {
-            console.error("Chat Error:", err);
-            const loader = document.getElementById(loadingId);
-            if (loader) loader.remove();
-            appendMessage("Connection error. Please ensure you are using a secure HTTPS connection.", 'ai');
-        }
-    };
-
-    // 4. Append Message with Timestamp in Corner
-    function appendMessage(text, sender, isLoading = false) {
-        const chatMessages = document.getElementById('chatMessages');
-        if (!chatMessages) return;
-
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message ${sender}-message`;
-
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const timestampHtml = isLoading ? '' : `<div style="font-size: 0.65rem; opacity: 0.5; text-align: right; margin-top: 5px; font-style: italic;">${time}</div>`;
-
-        msgDiv.innerHTML = `<div>${text}</div>${timestampHtml}`;
-
-        const msgId = 'msg-' + Date.now();
-        if (isLoading) msgDiv.id = msgId;
-
-        chatMessages.appendChild(msgDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        return msgId;
+    // Intercept greetings — reply instantly without calling API
+    const greetings = ['hi','hello','hey','hii','helo','howdy','sup'];
+    if (greetings.includes(message.trim().toLowerCase())) {
+        appendMessage(
+            "Hello! 👋 Ask me about the weather anywhere in Malaysia — " +
+            "your area, KL, Penang, Johor Bahru, or any city! 🌤️",
+            'ai'
+        );
+        return;
     }
 
-    // After displaying the AI response, check if user mentioned a known city
-    function zoomToMentionedCity(userMessage) {
+    // Add user message to history BEFORE sending
+    conversationHistory.push({ role: "user", content: message });
+
+    // Keep only last 6 messages (3 exchanges) to avoid token limits
+    if (conversationHistory.length > 6) {
+        conversationHistory = conversationHistory.slice(-6);
+    }
+
+    // Zoom map if a city is mentioned
+    zoomToMentionedCity(message);
+
+    const loadingId = appendMessage('<i class="bi bi-three-dots"></i> Analyzing...', 'ai', true);
+
+    const payload = {
+        query:          message,
+        history:        conversationHistory,
+        lat:            userLocation?.lat || null,
+        lng:            userLocation?.lng || null,
+        real_temp:      window.currentDataCache?.temperature     || null,
+        real_rain:      window.currentDataCache?.rain_percentage || null,
+        real_aqi:       window.currentDataCache?.aqi             || null,
+        real_condition: window.currentDataCache?.condition       || null,
+        real_city:      window.currentDataCache?.closest_city    || null
+    };
+
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const data = await response.json();
+
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
+
+        const botReply = data.response || "I'm having trouble retrieving that data.";
+        appendMessage(botReply, 'ai');
+
+        // Store bot reply in history AFTER receiving
+        conversationHistory.push({ role: "assistant", content: botReply });
+
+    } catch (err) {
+        console.error("Chat Error:", err);
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
+        appendMessage("Connection error. Please ensure you are using a secure HTTPS connection.", 'ai');
+    }
+};
+
+// 4. Append Message with Timestamp
+function appendMessage(text, sender, isLoading = false) {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${sender}-message`;
+
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timestampHtml = isLoading ? '' : `<div style="font-size: 0.65rem; opacity: 0.5; text-align: right; margin-top: 5px; font-style: italic;">${time}</div>`;
+
+    msgDiv.innerHTML = `<div>${text}</div>${timestampHtml}`;
+
+    const msgId = 'msg-' + Date.now();
+    if (isLoading) msgDiv.id = msgId;
+
+    chatMessages.appendChild(msgDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return msgId;
+}
+
+// 5. Zoom map to mentioned city
+function zoomToMentionedCity(userMessage) {
     const greetings = ['hi','hello','hey','ok','okay','yes','no','thanks',
                        'thank you','sure','great','good','nice','cool'];
     const cleaned = userMessage.trim().toLowerCase();
@@ -1030,7 +1047,7 @@ window.updateForecastView = function(range, e) {
     const hasLocationIntent = locationTriggers.some(t => cleaned.includes(t));
     if (!hasLocationIntent) return;
 
-    // Simple string removal instead of regex — avoids special character crashes
+    // Strip filler words using plain split/join — no regex special char crashes
     const fillers = ['how about','how is','how are','what about','weather in',
                      'weather at','rain in','aqi in','will it rain in',
                      'will it rain at','how the weather in','how the weather at',
@@ -1038,14 +1055,14 @@ window.updateForecastView = function(range, e) {
                      'how is','how are','the','in','at','lah','later','ltr',
                      'today','tomorrow','how'];
 
-    // Sort by length descending so longer phrases are removed first
+    // Sort longest first so multi-word phrases are removed before single words
     fillers.sort((a, b) => b.length - a.length);
 
     let cityGuess = cleaned;
     fillers.forEach(f => {
-        cityGuess = cityGuess.split(f).join('');  // plain split/join, no regex
+        cityGuess = cityGuess.split(f).join('');
     });
-    cityGuess = cityGuess.replace(/[?.!]/g, '').trim();  // only safe chars in regex
+    cityGuess = cityGuess.replace(/[?.!,]/g, '').trim();
 
     if (!cityGuess || cityGuess.length < 2) return;
 

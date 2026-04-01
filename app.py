@@ -523,76 +523,52 @@ def create_app():
             user_query = data.get('query', '')
             user_lat = data.get('lat')
             user_lng = data.get('lng')
+            history = data.get('history', [])
 
-            # Real data from the frontend (currentDataCache from predict_on_point)
             real_temp = data.get('real_temp')
             real_rain = data.get('real_rain')
             real_aqi = data.get('real_aqi')
             real_condition = data.get('real_condition')
             real_city = data.get('real_city')
 
-            # ------------------------------------------------------------------
-            # 1. Reverse-geocode the user's GPS to get neighbourhood-level name
-            #    Uses OpenStreetMap Nominatim — free, no API key needed.
-            # ------------------------------------------------------------------
+            # 1. Reverse-geocode GPS to neighbourhood name
             neighbourhood_label = None
             if user_lat and user_lng:
                 try:
                     rev_url = (
                         f"https://nominatim.openstreetmap.org/reverse"
-                        f"?lat={user_lat}&lon={user_lng}"
-                        f"&format=json&zoom=16&addressdetails=1"
+                        f"?lat={user_lat}&lon={user_lng}&format=json&zoom=16&addressdetails=1"
                     )
-                    rev_res = requests.get(
-                        rev_url,
-                        timeout=4,
-                        headers={"User-Agent": "EcoForecast/1.0"}
-                    ).json()
+                    rev_res = requests.get(rev_url, timeout=4, headers={"User-Agent": "EcoForecast/1.0"}).json()
                     addr = rev_res.get("address", {})
-                    # Try from most specific to least specific
                     neighbourhood = (
-                            addr.get("neighbourhood") or
-                            addr.get("suburb") or
-                            addr.get("quarter") or
-                            addr.get("village") or
-                            addr.get("city_district") or
-                            addr.get("town") or
-                            addr.get("city") or
-                            ""
+                            addr.get("neighbourhood") or addr.get("suburb") or
+                            addr.get("quarter") or addr.get("village") or
+                            addr.get("city_district") or addr.get("town") or
+                            addr.get("city") or ""
                     )
                     city_name = addr.get("city") or addr.get("town") or addr.get("county") or ""
                     state_name = addr.get("state") or ""
-
                     if neighbourhood and city_name and neighbourhood != city_name:
                         neighbourhood_label = f"{neighbourhood}, {city_name}, {state_name}"
                     elif city_name:
                         neighbourhood_label = f"{city_name}, {state_name}"
-
                 except Exception as geo_err:
                     print(f"[chat] Reverse geocode failed: {geo_err}")
-                    neighbourhood_label = None
 
-            user_place = neighbourhood_label or f"Lat {user_lat}, Lng {user_lng}" if user_lat else "Unknown location"
+            user_place = neighbourhood_label or (f"Lat {user_lat}, Lng {user_lng}" if user_lat else "Unknown location")
 
-            # ------------------------------------------------------------------
-            # 2. If no clicked-point data, fetch live data for user's GPS
-            # ------------------------------------------------------------------
+            # 2. Fallback — fetch live data for GPS if no clicked-point data
             if real_temp is None and user_lat and user_lng:
                 try:
-                    fallback_url = (
-                        f"https://api.open-meteo.com/v1/forecast"
-                        f"?latitude={user_lat}&longitude={user_lng}"
-                        f"&current_weather=true"
-                        f"&hourly=precipitation_probability"
-                        f"&timezone=auto"
-                    )
-                    fallback_aqi_url = (
-                        f"https://air-quality-api.open-meteo.com/v1/air-quality"
-                        f"?latitude={user_lat}&longitude={user_lng}"
-                        f"&current=us_aqi&timezone=auto"
-                    )
-                    w_fb = requests.get(fallback_url, timeout=5).json()
-                    a_fb = requests.get(fallback_aqi_url, timeout=5).json()
+                    w_fb = requests.get(
+                        f"https://api.open-meteo.com/v1/forecast?latitude={user_lat}&longitude={user_lng}"
+                        f"&current_weather=true&hourly=precipitation_probability&timezone=auto", timeout=5
+                    ).json()
+                    a_fb = requests.get(
+                        f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={user_lat}&longitude={user_lng}"
+                        f"&current=us_aqi&timezone=auto", timeout=5
+                    ).json()
                     cur_hour = datetime.now().hour
                     precip_fb = w_fb.get("hourly", {}).get("precipitation_probability", [0])
                     real_rain = precip_fb[cur_hour] if cur_hour < len(precip_fb) else 0
@@ -603,15 +579,26 @@ def create_app():
                 except Exception as fb_err:
                     print(f"[chat] Fallback weather fetch failed: {fb_err}")
 
-            # ------------------------------------------------------------------
-            # 3. Current location context
-            # ------------------------------------------------------------------
+            # 3. Weather code to plain English
+            weather_code_map = {
+                0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+                45: "Foggy", 48: "Foggy", 51: "Light drizzle", 53: "Drizzle",
+                55: "Heavy drizzle", 61: "Light rain", 63: "Moderate rain", 65: "Heavy rain",
+                80: "Rain showers", 81: "Rain showers", 82: "Heavy showers",
+                95: "Thunderstorm", 96: "Thunderstorm",
+            }
+            try:
+                condition_text = weather_code_map.get(int(float(real_condition or 0)), "Partly cloudy")
+            except (ValueError, TypeError):
+                condition_text = "Partly cloudy"
+
+            # 4. Build location context
             if real_temp is not None and real_rain is not None:
                 current_location_context = (
                     f"USER'S CURRENT LOCATION: {user_place}\n"
                     f"- Nearest monitored city: {real_city or 'Unknown'}\n"
                     f"- Temperature: {real_temp}°C\n"
-                    f"- Condition: {real_condition}\n"
+                    f"- Condition: {condition_text}\n"
                     f"- Rain probability: {real_rain}%\n"
                     f"- AQI: {real_aqi}\n"
                 )
@@ -621,9 +608,7 @@ def create_app():
                     "No live weather data available yet. Ask the user to click a point on the map."
                 )
 
-            # ------------------------------------------------------------------
-            # 4. Malaysia city DB context
-            # ------------------------------------------------------------------
+            # 5. Malaysia city DB context
             conn = get_connection()
             cur = conn.cursor()
             cur.execute("""
@@ -640,53 +625,39 @@ def create_app():
 
             malaysia_context = "MALAYSIA CITY DATA:\n" + "\n".join(
                 [
-                    f"- {c}: {round(t, 1)}°C" + (f", AQI {a}" if a and int(a) > 0 else ", AQI not available")
+                    f"- {c}: {round(t, 1)}°C" +
+                    (f", AQI {a}" if a and int(a) > 0 else ", AQI not available")
                     for c, t, a in latest_data if t
                 ]
             )
+            known_cities_str = ", ".join([row[0] for row in latest_data if row[1]])
 
-            # List of known cities for Rule 3 below
-            known_cities = [row[0] for row in latest_data if row[1]]
-            known_cities_str = ", ".join(known_cities)
-
-            # ------------------------------------------------------------------
-            # 5. System prompt
-            # ------------------------------------------------------------------
-            # Weather code translation for Rule 4
-            weather_code_map = {
-                0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-                45: "Foggy", 48: "Foggy", 51: "Light drizzle", 53: "Drizzle",
-                55: "Heavy drizzle", 61: "Light rain", 63: "Moderate rain",
-                65: "Heavy rain", 80: "Rain showers", 81: "Rain showers",
-                82: "Heavy showers", 95: "Thunderstorm", 96: "Thunderstorm",
-            }
-            condition_text = weather_code_map.get(int(real_condition or 0), "Partly cloudy")
-
+            # 6. System prompt
             system_instruction = f"""
-            You are EcoForecast AI, a weather and air quality assistant for Malaysia ONLY.
+    You are EcoForecast AI, a weather and air quality assistant for Malaysia ONLY.
 
-            {current_location_context}
-            - Condition (plain English): {condition_text}
+    {current_location_context}
 
-            {malaysia_context}
+    {malaysia_context}
 
-            STRICT RULES — never break these:
-            1. LOCATION: Always refer to the user as being in "{user_place}". Never show raw coordinates.
-            2. RAIN: The rain probability at user's location is exactly {real_rain}%. Never invent this number. 3. 
-            CITY LOOKUP: When user asks about a city, find it in MALAYSIA CITY DATA. Answer with the temperature. If 
-            AQI shows "not available" for that city, say "AQI data isn't available for [city] right now" — never say 
-            AQI is 0 unless the data explicitly shows a non-zero value. 4. CONDITION: Always use plain English 
-            condition. Current condition at user location is " {condition_text}". Never say "condition rating of X". 
-            5. OFF-TOPIC: If the user asks anything unrelated to weather, air quality, or health impacts of air — 
-            reply ONLY with: "I can only help with weather and air quality questions! 🌤️ Try asking about the 
-            weather in your area or any Malaysian city." 6. FORMAT: 1-2 short friendly sentences. Emojis welcome. No 
-            bullet points."""
+    STRICT RULES:
+    1. LOCATION: Always refer to the user as being in "{user_place}". Never show raw coordinates.
+    2. RAIN: Rain probability at user's location is exactly {real_rain}%. Never invent this number.
+    3. CITY LOOKUP: When user asks about any city or abbreviation (SP=Sungai Petani, KL=Kuala Lumpur, PG=Penang, JB=Johor Bahru, KB=Kota Bharu, KK=Kota Kinabalu), search MALAYSIA CITY DATA for a full or partial match. Answer with that city's exact data. Only say no data if truly not in the list.
+    4. CONDITION: Current condition at user location is "{condition_text}". Never say "condition rating of X".
+    5. OFF-TOPIC: If user asks anything unrelated to weather, air quality, or health impacts — reply ONLY: "I can only help with weather and air quality questions! 🌤️ Try asking about the weather in your area or any Malaysian city."
+    6. CONTEXT: If user asks "will it rain" or "how is it" without naming a city, check conversation history for the last mentioned city and answer for that city. If no city was mentioned, answer for user's location: {user_place}.
+    7. FORMAT: 1-2 short friendly sentences. Emojis welcome. No bullet points.
+    """
+
+            # 7. Build messages with full conversation history
+            messages = [{"role": "system", "content": system_instruction}]
+            if len(history) > 1:
+                messages.extend(history[:-1])  # all except current (already in user_query)
+            messages.append({"role": "user", "content": user_query})
 
             chat_completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_query}
-                ],
+                messages=messages,
                 model="llama-3.1-8b-instant",
             )
 
