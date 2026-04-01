@@ -513,6 +513,7 @@ window.updateForecastView = function(range, e) {
             if (d.time === 'Now') return true;
             // Includes everything that looks like an hour (HH:00)
             return d.time.match(/\d{2}:00/);
+            });
     } else {
         // --- 7 DAYS: Keep your existing logic for multi-day view ---
         filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
