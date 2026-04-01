@@ -515,11 +515,12 @@ window.updateForecastView = function(range, e) {
         });
     } else if (range === 'medium') {
         // --- 24 HOURS: Only Hourly points for the next 24 hours ---
-        // Exclude anything with a comma (which indicates a day summary like "Thu, 02 Apr")
         filtered = all.filter(d => {
             if (d.time === 'Now') return true;
-            // Must have a colon (time) and MUST NOT have a comma (day summary)
-            return d.time.includes(':') && !d.time.includes(',');
+
+            const isHourly = d.time.includes(':') && !d.time.includes(',');
+
+            return isHourly;
         }).slice(0, 24); // Ensure we don't grab more than 24 points
     } else {
         // --- 7 DAYS: Only the day summaries ---
