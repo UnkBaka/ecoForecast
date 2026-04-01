@@ -493,17 +493,28 @@ window.updateForecastView = function(range, e) {
     // Filter based on button clicked
     let filtered;
     if (range === 'short') {
-        // 6 hours — just take first 7 points (Now + next 6)
-        filtered = all.slice(0, 7);
+        filtered = all.filter(d => {
+            if (d.time === 'Now') return true;
+            const hourMatch = d.time.match(/^(\d{2}):00$/);
+            if (hourMatch) {
+                const hour = parseInt(hourMatch[1]);
+                // Handle wrap-around (e.g., if it's 22:00, show 23:00, 00:00, etc.)
+                const diff = (hour - currentHour + 24) % 24;
+                return diff > 0 && diff <= 6;
+            }
+            return false;
+        });
     } else if (range === 'medium') {
-        // 24 hours — all points that are not multi-day (no comma in label)
-        filtered = all.filter(d => !d.time.includes(','));
+        // --- 24 HOURS: Today 00:00 to 23:59 ---
+        // Filters for any string formatted as HH:00 (ignores "Now" or "Mon, 01")
+        filtered = all.filter(d => d.time.match(/^\d{2}:00$/) || d.time === 'Now');
     } else {
-        // 7 days — day points only (have comma) plus Now
+        // --- 7 DAYS: Keep your existing logic for multi-day view ---
         filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
     }
 
-    if (!filtered.length) filtered = all;
+    // Fallback if filter returns empty
+    if (!filtered.length) filtered = all.slice(0, 12);
 
     const labels = filtered.map(d => d.time);
     const temps  = filtered.map(d => d.temp);
