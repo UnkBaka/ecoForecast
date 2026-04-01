@@ -123,16 +123,19 @@ def heal_missing_data(conn):
 
         # --- PART 2: GENERATE FUTURE 24H (LSTM AI) ---
         # Move this OUTSIDE the try/except block so it always runs
-        print(f"  [>] Predicting next 24h for {name}...")
+        print(f"  [>] Generating future 24h forecast for {name}...")
         now = datetime.now().replace(minute=0, second=0, microsecond=0)
 
         for h in range(1, 25):
+            # 2. Add 'h' hours to NOW (1h, 2h, 3h...)
             future_time = now + timedelta(hours=h)
             db_time = future_time.strftime('%Y-%m-%d %H:%M:%S')
 
+            # 3. Check if this specific hour already exists
             cur.execute("SELECT id FROM predictions WHERE location_id = ? AND timestamp = ?", (loc_id, db_time))
             if not cur.fetchone():
                 pred_temp, pred_weather, rain_chance = get_forecast_by_name(name, target_time=future_time)
+
                 if pred_temp is not None:
                     cur.execute("""
                         INSERT INTO predictions (location_id, label, predicted_value, predicted_weather_code, rain_chance, timestamp)
@@ -140,7 +143,6 @@ def heal_missing_data(conn):
                     """, (loc_id, pred_temp, pred_weather, rain_chance, db_time))
 
         conn.commit()
-        print(f"  ✅ {name} synchronized and forecast generated.")
 
 
 def sync_all_locations():
