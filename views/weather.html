@@ -489,51 +489,32 @@ window.updateForecastView = function(range, e) {
     if (!currentDataCache || !currentDataCache.forecast_data) return;
 
     const all = currentDataCache.forecast_data;
-    const now = new Date();
-    const currentHour = now.getHours();
 
     let filtered;
 
     if (range === 'short') {
-        // --- 6 HOURS ---
-        filtered = all.filter(d => {
-            if (d.time === 'Now') return true;
-            // 1. Must be hourly (has :) 2. Must NOT be a daily summary (no ,)
-            if (d.time.includes(':') && !d.time.includes(',')) {
-                const match = d.time.match(/(\d{2}):00/);
-                if (match) {
-                    const hour = parseInt(match[1]);
-                    const diff = (hour - currentHour + 24) % 24;
-                    return diff > 0 && diff <= 6;
-                }
-            }
-            return false;
-        });
+        // 6 hours — Now + next 6 hourly points
+        // Hourly points have no comma and are not 'Now'
+        // Daily points have a comma — exclude them
+        const hourly = all.filter(d => !d.time.includes(','));
+        filtered = hourly.slice(0, 7);  // Now + 6 hours
+
     } else if (range === 'medium') {
-        // --- 24 HOURS ---
-        // Strictly only hourly increments, ignoring any day summaries
-        filtered = all.filter(d => {
-            if (d.time === 'Now') return true;
-            // A true hourly point has a colon but NO comma
-            return d.time.includes(':') && !d.time.includes(',');
-        }).slice(0, 24);
+        // 24 hours — all hourly points (no comma)
+        filtered = all.filter(d => !d.time.includes(','));
+
     } else {
-        // --- 7 DAYS ---
-        // Only points that represent a full day (contain a comma)
+        // 7 days — daily points only (have comma) plus Now
         filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
     }
 
-    // Fallback if filter returns empty
-    if (filtered.length <= 1) {
-        filtered = all.slice(0, range === 'short' ? 7 : 24);
-    }
+    if (!filtered.length) filtered = all.slice(0, 7);
 
     const labels = filtered.map(d => d.time);
     const temps  = filtered.map(d => d.temp);
     const probs  = filtered.map(d => d.prob);
 
     const ctx = document.getElementById('forecastChartCanvas').getContext('2d');
-
     if (forecastChart) forecastChart.destroy();
 
     forecastChart = new Chart(ctx, {
@@ -576,22 +557,19 @@ window.updateForecastView = function(range, e) {
                     ticks: {
                         color: 'rgba(255,255,255,0.7)',
                         font: { size: 10 },
-                        autoSkip: true,   // This prevents labels from overlapping
-                        maxRotation: 0    // Keeps labels horizontal
+                        autoSkip: true,
+                        maxRotation: 0
                     },
                     grid: { color: 'rgba(255,255,255,0.05)' }
                 },
                 yTemp: {
-                    type: 'linear',
-                    position: 'left',
+                    type: 'linear', position: 'left',
                     ticks: { color: '#e74c3c', callback: v => v + '°C' },
                     grid: { color: 'rgba(255,255,255,0.05)' }
                 },
                 yRain: {
-                    type: 'linear',
-                    position: 'right',
-                    min: 0,
-                    max: 100,
+                    type: 'linear', position: 'right',
+                    min: 0, max: 100,
                     ticks: { color: '#3498db', callback: v => v + '%' },
                     grid: { drawOnChartArea: false }
                 }
@@ -599,7 +577,6 @@ window.updateForecastView = function(range, e) {
         }
     });
 
-    // Highlight active button
     document.querySelectorAll('.btn-time').forEach(b => b.style.background = 'rgba(255,255,255,0.1)');
     if (e && e.target) e.target.style.background = 'rgba(52,152,219,0.4)';
 };

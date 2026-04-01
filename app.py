@@ -762,7 +762,9 @@ def create_app():
             base_rain_chance = precip_list[current_hour] if current_hour < len(precip_list) else 0.0
 
             forecast_list = []
-            offsets = [0, 1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144]
+            offsets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                       13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                       48, 72, 96, 120, 144, 168]
 
             for offset in offsets:
                 i = current_hour + offset
