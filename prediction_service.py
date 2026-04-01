@@ -96,46 +96,51 @@ def heal_missing_data(conn):
     cur.execute("SELECT id, name, lat, lon FROM locations")
     locations = cur.fetchall()
 
-    # --- UPDATED: Look back 8 days to cover March 1st until now ---
-    print(f"\n[*] 🛠️ Healing data gaps (Last 8 days to cover March 1st)...")
+    print(f"\n[*] 🛠️ Healing data gaps and generating future forecast...")
 
     for loc_id, name, lat, lon in locations:
-        # past_days=8 ensures we bridge the gap from the March 1st cleanup
+        # --- PART 1: HEAL HISTORY (API) ---
         w_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relative_humidity_2m,surface_pressure,windspeed_10m,weathercode&timezone=auto&past_days=8"
         try:
             res = requests.get(w_url).json().get('hourly', {})
-            if not res: continue
+            if res:
+                print(f"  [>] Syncing history for {name}...")
+                for i, api_time in enumerate(res.get('time', [])):
+                    db_time = api_time.replace('T', ' ') + ":00"
 
-            print(f"  [>] Processing {name} history...")
-            for i, api_time in enumerate(res.get('time', [])):
-                db_time = api_time.replace('T', ' ') + ":00"
-
-                # 1. Fill Weather Gaps
-                cur.execute("SELECT id FROM weather_data WHERE location_id = ? AND timestamp = ?", (loc_id, db_time))
-                if not cur.fetchone():
-                    cur.execute("""
-                        INSERT INTO weather_data (location_id, timestamp, temperature, humidity, pressure, wind_speed, weather_code, aqi)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-                    """, (loc_id, db_time, res['temperature_2m'][i], res['relative_humidity_2m'][i],
-                          res['surface_pressure'][i], res['windspeed_10m'][i], res['weathercode'][i]))
-
-            conn.commit() # Commit all weather first so AI has enough context
-
-            # 2. Fill AI Prediction Gaps
-            for i, api_time in enumerate(res.get('time', [])):
-                db_time = api_time.replace('T', ' ') + ":00"
-                cur.execute("SELECT id FROM predictions WHERE location_id = ? AND timestamp = ?", (loc_id, db_time))
-                if not cur.fetchone():
-                    pred_temp, pred_weather, rain_chance = get_forecast_by_name(name, target_time=datetime.fromisoformat(api_time))
-                    if pred_temp is not None:
+                    # Fill Weather Table
+                    cur.execute("SELECT id FROM weather_data WHERE location_id = ? AND timestamp = ?",
+                                (loc_id, db_time))
+                    if not cur.fetchone():
                         cur.execute("""
-                            INSERT INTO predictions (location_id, label, predicted_value, predicted_weather_code, rain_chance, timestamp)
-                            VALUES (?, 'forecast', ?, ?, ?, ?)
-                        """, (loc_id, pred_temp, pred_weather, rain_chance, db_time))
-            conn.commit()
-            print(f"  ✅ {name} synchronized and predicted.")
+                            INSERT INTO weather_data (location_id, timestamp, temperature, humidity, pressure, wind_speed, weather_code, aqi)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                        """, (loc_id, db_time, res['temperature_2m'][i], res['relative_humidity_2m'][i],
+                              res['surface_pressure'][i], res['windspeed_10m'][i], res['weathercode'][i]))
+                conn.commit()
         except Exception as e:
-            print(f"  [-] Error healing {name}: {e}")
+            print(f"  [-] Error syncing history for {name}: {e}")
+
+        # --- PART 2: GENERATE FUTURE 24H (LSTM AI) ---
+        # Move this OUTSIDE the try/except block so it always runs
+        print(f"  [>] Predicting next 24h for {name}...")
+        now = datetime.now().replace(minute=0, second=0, microsecond=0)
+
+        for h in range(1, 25):
+            future_time = now + timedelta(hours=h)
+            db_time = future_time.strftime('%Y-%m-%d %H:%M:%S')
+
+            cur.execute("SELECT id FROM predictions WHERE location_id = ? AND timestamp = ?", (loc_id, db_time))
+            if not cur.fetchone():
+                pred_temp, pred_weather, rain_chance = get_forecast_by_name(name, target_time=future_time)
+                if pred_temp is not None:
+                    cur.execute("""
+                        INSERT INTO predictions (location_id, label, predicted_value, predicted_weather_code, rain_chance, timestamp)
+                        VALUES (?, 'forecast', ?, ?, ?, ?)
+                    """, (loc_id, pred_temp, pred_weather, rain_chance, db_time))
+
+        conn.commit()
+        print(f"  ✅ {name} synchronized and forecast generated.")
 
 
 def sync_all_locations():
