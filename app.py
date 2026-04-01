@@ -648,6 +648,8 @@ def create_app():
                 ]
             )
             known_cities_str = ", ".join([row[0] for row in latest_data if row[1]])
+            # Add a note about Penang alias
+            malaysia_context += "\nNote: George Town = Penang island city. Penang/Pinang refers to George Town."
 
             # 6. System prompt
             system_instruction = f"""
@@ -692,10 +694,14 @@ def create_app():
             'kl': 'Kuala Lumpur',
             'jb': 'Johor Bahru',
             'pg': 'Penang',
+            'penang': 'George Town',  # ← add this
+            'pinang': 'George Town',  # ← and this
             'kk': 'Kota Kinabalu',
             'kb': 'Kota Bharu',
             'sp': 'Sungai Petani',
-            'ipoh': 'Ipoh',
+            'melaka': 'Malacca City',  # ← common alternate spelling
+            'melacca': 'Malacca City',
+            'pj': 'Petaling Jaya',
         }
         city_lookup = abbreviations.get(city.lower(), city)
 
