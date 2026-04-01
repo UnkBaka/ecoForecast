@@ -936,37 +936,47 @@ window.updateForecastView = function(range, e) {
     };
 
     // 3. Send Message to Backend
-    window.sendChatMessage = async function() {
+        window.sendChatMessage = async function() {
         const input = document.getElementById('chatInput');
-        const message = input.value.trim(); // We will stick with 'message' as the variable name
+        const message = input.value.trim();
 
         if (!message) return;
 
-        // FIX 1: Use 'message' instead of 'userMsg'
         appendMessage(message, 'user');
         input.value = '';
 
+        // Intercept greetings — reply instantly without calling API
+        const greetings = ['hi','hello','hey','hii','helo','howdy','sup'];
+        if (greetings.includes(message.trim().toLowerCase())) {
+            appendMessage(
+                "Hello! 👋 Ask me about the weather anywhere in Malaysia — " +
+                "your area, KL, Penang, Johor Bahru, or any city! 🌤️",
+                'ai'
+            );
+            return;
+        }
+
+        // Zoom map if a city is mentioned (runs at same time as API call)
+        zoomToMentionedCity(message);
+
         const loadingId = appendMessage('<i class="bi bi-three-dots"></i> Analyzing...', 'ai', true);
 
-        // 1. Safe Data Extraction
-        // Added window. prefix to currentDataCache to ensure it checks the global scope safely
         const payload = {
             query:          message,
             lat:            userLocation?.lat || null,
             lng:            userLocation?.lng || null,
-            real_temp:      window.currentDataCache?.temperature    || null,
+            real_temp:      window.currentDataCache?.temperature     || null,
             real_rain:      window.currentDataCache?.rain_percentage || null,
             real_aqi:       window.currentDataCache?.aqi             || null,
             real_condition: window.currentDataCache?.condition       || null,
             real_city:      window.currentDataCache?.closest_city    || null
         };
 
-        // 2. Fetch with Error Handling
         try {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload) // FIX 2: Send the full payload, not just the query
+                body: JSON.stringify(payload)
             });
 
             if (!response.ok) throw new Error('Network response was not ok');
@@ -974,20 +984,14 @@ window.updateForecastView = function(range, e) {
             const data = await response.json();
 
             const loader = document.getElementById(loadingId);
-            if(loader) loader.remove();
+            if (loader) loader.remove();
 
             appendMessage(data.response || "I'm having trouble retrieving that data.", 'ai');
-
-            // FIX 3: Move the zoom function inside the 'try' block so it has access to the message
-            zoomToMentionedCity(message);
 
         } catch (err) {
             console.error("Chat Error:", err);
             const loader = document.getElementById(loadingId);
-            if(loader) loader.remove();
-
-            // Insight: Since you mentioned the Hetzner/TLS issue,
-            // this error message helps the user understand why GPS might fail.
+            if (loader) loader.remove();
             appendMessage("Connection error. Please ensure you are using a secure HTTPS connection.", 'ai');
         }
     };
@@ -1015,18 +1019,16 @@ window.updateForecastView = function(range, e) {
 
     // After displaying the AI response, check if user mentioned a known city
     function zoomToMentionedCity(userMessage) {
-    // Only trigger if message is more than 3 words OR looks like a city query
-    // Ignore short greetings like "hi", "hello", "ok", "yes"
     const greetings = ['hi','hello','hey','ok','okay','yes','no','thanks',
                        'thank you','sure','great','good','nice','cool'];
     const cleaned = userMessage.trim().toLowerCase();
 
-    // Skip if it's just a greeting or very short
+    // Skip greetings or very short messages
     if (greetings.includes(cleaned) || cleaned.length < 4) return;
 
-    // Only zoom if message contains a question about a place
+    // Only zoom if message contains weather-related intent
     const locationTriggers = ['rain','weather','temperature','aqi','hot',
-                               'cold','humid','forecast','haze','wind'];
+                               'cold','humid','forecast','haze','wind','area'];
     const hasLocationIntent = locationTriggers.some(t => cleaned.includes(t));
     if (!hasLocationIntent) return;
 
