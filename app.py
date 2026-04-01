@@ -691,10 +691,14 @@ def create_app():
         abbreviations = {
             'kl': 'Kuala Lumpur',
             'jb': 'Johor Bahru',
-            'pg': 'Penang',
             'kk': 'Kota Kinabalu',
             'kb': 'Kota Bharu',
+            'penang': 'George Town',
+            'pinang': 'George Town',
             'sp': 'Sungai Petani',
+            'melaka': 'Malacca City',
+            'melacca': 'Malacca City',
+            'pj': 'Petaling Jaya',
             'ipoh': 'Ipoh',
         }
         city_lookup = abbreviations.get(city.lower(), city)
