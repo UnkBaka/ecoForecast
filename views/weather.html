@@ -501,21 +501,29 @@ window.updateForecastView = function(range, e) {
     let filtered;
 
     if (range === 'short') {
-        // --- 6 HOURS: Between Now and +6 Hours ---
+        // --- 6 HOURS: Current Hour + next 6 hours ---
         filtered = all.filter(d => {
             if (d.time === 'Now') return true;
-            const dDate = new Date(d.time).getTime();
-            return dDate >= now.getTime() && dDate <= sixHoursLater;
+            // Only look for hourly format (e.g., "19:00" or "2026-04-01 19:00")
+            const match = d.time.match(/(\d{2}):00/);
+            if (match) {
+                const hour = parseInt(match[1]);
+                const diff = (hour - currentHour + 24) % 24;
+                return diff > 0 && diff <= 6;
+            }
+            return false;
         });
     } else if (range === 'medium') {
-        // --- 24 HOURS: Everything for the current calendar day ---
+        // --- 24 HOURS: Only Hourly points for the next 24 hours ---
+        // Exclude anything with a comma (which indicates a day summary like "Thu, 02 Apr")
         filtered = all.filter(d => {
             if (d.time === 'Now') return true;
-            const dDate = new Date(d.time).getTime();
-            return dDate >= todayStart && dDate <= todayEnd;
-        });
+            // Must have a colon (time) and MUST NOT have a comma (day summary)
+            return d.time.includes(':') && !d.time.includes(',');
+        }).slice(0, 24); // Ensure we don't grab more than 24 points
     } else {
-        // --- 7 DAYS: Keep your comma-based logic ---
+        // --- 7 DAYS: Only the day summaries ---
+        // Must have a comma (e.g., "Thu, 02 Apr") or be "Now"
         filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
     }
 
@@ -584,6 +592,12 @@ window.updateForecastView = function(range, e) {
                     grid: { drawOnChartArea: false }
                 }
             }
+        }
+        ticks: {
+            color: 'rgba(255,255,255,0.7)',
+            font: { size: 10 },
+            autoSkip: true,
+            maxRotation: 0
         }
     });
 
