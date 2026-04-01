@@ -490,37 +490,39 @@ window.updateForecastView = function(range, e) {
 
     const all = currentDataCache.forecast_data;
     const now = new Date();
-    const currentHour = now.getHours(); // 0-23;
 
-    // Filter based on button clicked
+    // Get the start of "Today" (00:00:00)
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    // Get the end of "Today" (23:59:59)
+    const todayEnd = todayStart + (24 * 60 * 60 * 1000) - 1;
+    // Get "6 hours from now"
+    const sixHoursLater = now.getTime() + (6 * 60 * 60 * 1000);
+
     let filtered;
+
     if (range === 'short') {
+        // --- 6 HOURS: Between Now and +6 Hours ---
         filtered = all.filter(d => {
             if (d.time === 'Now') return true;
-
-            // Extract numbers from string (handles "18:00" or "2026-04-01 18:00:00")
-            const match = d.time.match(/(\d{2}):00/);
-            if (match) {
-                const hour = parseInt(match[1]);
-                const diff = (hour - currentHour + 24) % 24;
-                return diff > 0 && diff <= 6;
-            }
-            return false;
+            const dDate = new Date(d.time).getTime();
+            return dDate >= now.getTime() && dDate <= sixHoursLater;
         });
     } else if (range === 'medium') {
-        // --- 24 HOURS: Today 00:00 to 23:59 ---
+        // --- 24 HOURS: Everything for the current calendar day ---
         filtered = all.filter(d => {
             if (d.time === 'Now') return true;
-            // Includes everything that looks like an hour (HH:00)
-            return d.time.match(/\d{2}:00/);
-            });
+            const dDate = new Date(d.time).getTime();
+            return dDate >= todayStart && dDate <= todayEnd;
+        });
     } else {
-        // --- 7 DAYS: Keep your existing logic for multi-day view ---
+        // --- 7 DAYS: Keep your comma-based logic ---
         filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
     }
 
     // Fallback if filter returns empty
-    if (!filtered.length) filtered = all.slice(0, 12);
+    if (filtered.length <= 1) {
+        filtered = all.slice(0, range === 'short' ? 7 : 24);
+    }
 
     const labels = filtered.map(d => d.time);
     const temps  = filtered.map(d => d.temp);
