@@ -1015,15 +1015,30 @@ window.updateForecastView = function(range, e) {
 
     // After displaying the AI response, check if user mentioned a known city
     function zoomToMentionedCity(userMessage) {
-        fetch('/api/get_city_coords?city=' + encodeURIComponent(userMessage))
-            .then(r => r.json())
-            .then(data => {
-                if (data.found && window.map) {
-                    window.map.setView([data.lat, data.lon], 13, { animate: true });
-                }
-            })
-            .catch(() => {});
-    }
+    // Only trigger if message is more than 3 words OR looks like a city query
+    // Ignore short greetings like "hi", "hello", "ok", "yes"
+    const greetings = ['hi','hello','hey','ok','okay','yes','no','thanks',
+                       'thank you','sure','great','good','nice','cool'];
+    const cleaned = userMessage.trim().toLowerCase();
+
+    // Skip if it's just a greeting or very short
+    if (greetings.includes(cleaned) || cleaned.length < 4) return;
+
+    // Only zoom if message contains a question about a place
+    const locationTriggers = ['rain','weather','temperature','aqi','hot',
+                               'cold','humid','forecast','haze','wind'];
+    const hasLocationIntent = locationTriggers.some(t => cleaned.includes(t));
+    if (!hasLocationIntent) return;
+
+    fetch('/api/get_city_coords?city=' + encodeURIComponent(userMessage))
+        .then(r => r.json())
+        .then(data => {
+            if (data.found && typeof map !== 'undefined') {
+                map.setView([data.lat, data.lon], 13, { animate: true });
+            }
+        })
+        .catch(() => {});
+}
 });
 
 </script>
