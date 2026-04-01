@@ -580,6 +580,12 @@ window.updateForecastView = function(range, e) {
                     ticks: { color: 'rgba(255,255,255,0.7)', font: { size: 10 } },
                     grid: { color: 'rgba(255,255,255,0.05)' }
                 },
+                ticks: {
+                    color: 'rgba(255,255,255,0.7)',
+                    font: { size: 10 },
+                    autoSkip: true,
+                    maxRotation: 0
+                }
                 yTemp: {
                     type: 'linear', position: 'left',
                     ticks: { color: '#e74c3c', callback: v => v + '°C' },
@@ -592,12 +598,6 @@ window.updateForecastView = function(range, e) {
                     grid: { drawOnChartArea: false }
                 }
             }
-        }
-        ticks: {
-            color: 'rgba(255,255,255,0.7)',
-            font: { size: 10 },
-            autoSkip: true,
-            maxRotation: 0
         }
     });
 
