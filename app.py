@@ -608,6 +608,23 @@ def create_app():
                     "No live weather data available yet. Ask the user to click a point on the map."
                 )
 
+            # Clicked city context (real data from predict_on_point, not DB)
+            clicked_city_name = data.get('clicked_city_name')
+            clicked_city_temp = data.get('clicked_city_temp')
+            clicked_city_aqi = data.get('clicked_city_aqi')
+            clicked_city_rain = data.get('clicked_city_rain')
+
+            clicked_city_context = ""
+            if clicked_city_name:
+                clicked_city_context = (
+                    f"\nLAST CLICKED CITY (real-time data from map pin):\n"
+                    f"- City: {clicked_city_name}\n"
+                    f"- Temperature: {clicked_city_temp}°C\n"
+                    f"- AQI: {clicked_city_aqi}\n"
+                    f"- Rain probability: {clicked_city_rain}%\n"
+                    f"Use this data when the user asks about {clicked_city_name}.\n"
+                )
+
             # 5. Malaysia city DB context
             conn = get_connection()
             cur = conn.cursor()
@@ -637,13 +654,13 @@ def create_app():
     You are EcoForecast AI, a weather and air quality assistant for Malaysia ONLY.
 
     {current_location_context}
-
+    {clicked_city_context}
     {malaysia_context}
 
     STRICT RULES:
     1. LOCATION: Always refer to the user as being in "{user_place}". Never show raw coordinates.
     2. RAIN: Rain probability at user's location is exactly {real_rain}%. Never invent this number.
-    3. CITY LOOKUP: When user asks about a city, find it in MALAYSIA CITY DATA and answer with temperature and AQI. For rain probability of OTHER cities (not the user's location), say "I don't have live rain data for [city] — I can only show rain probability for your current location or a point you click on the map." Never invent a rain percentage for other cities.    4. CONDITION: Current condition at user location is "{condition_text}". Never say "condition rating of X".
+    3. CITY LOOKUP: First check LAST CLICKED CITY data above — if the user asks about that city, use its exact real-time numbers including rain probability. Then check MALAYSIA CITY DATA for temperature. For cities not in either source, say you don't have data.
     5. OFF-TOPIC: If user asks anything unrelated to weather, air quality, or health impacts — reply ONLY: "I can only help with weather and air quality questions! 🌤️ Try asking about the weather in your area or any Malaysian city."
     6. CONTEXT: If user asks "will it rain" or "how is it" without naming a city, check conversation history for the last mentioned city and answer for that city. If no city was mentioned, answer for user's location: {user_place}.
     7. FORMAT: 1-2 short friendly sentences. Emojis welcome. No bullet points.

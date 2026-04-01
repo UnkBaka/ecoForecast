@@ -757,6 +757,14 @@ window.updateForecastView = function(range, e) {
         console.log("CRITICAL DEBUG - Server Response:", data);
         currentDataCache = data;
 
+        window.lastClickedCityData = {
+            name:        data.closest_city,
+            temp:        data.temperature,
+            aqi:         data.aqi,
+            rain:        data.rain_percentage,
+            condition:   data.condition
+        };
+
         const insightBox = document.getElementById("ai_insight_box");
         const summaryText = data.ai_summary || "";
 
@@ -974,15 +982,20 @@ window.sendChatMessage = async function() {
     const loadingId = appendMessage('<i class="bi bi-three-dots"></i> Analyzing...', 'ai', true);
 
     const payload = {
-        query:          message,
-        history:        conversationHistory,
-        lat:            userLocation?.lat || null,
-        lng:            userLocation?.lng || null,
-        real_temp:      window.currentDataCache?.temperature     || null,
-        real_rain:      window.currentDataCache?.rain_percentage || null,
-        real_aqi:       window.currentDataCache?.aqi             || null,
-        real_condition: window.currentDataCache?.condition       || null,
-        real_city:      window.currentDataCache?.closest_city    || null
+        query:             message,
+        history:           conversationHistory,
+        lat:               userLocation?.lat || null,
+        lng:               userLocation?.lng || null,
+        real_temp:         window.currentDataCache?.temperature     || null,
+        real_rain:         window.currentDataCache?.rain_percentage || null,
+        real_aqi:          window.currentDataCache?.aqi             || null,
+        real_condition:    window.currentDataCache?.condition       || null,
+        real_city:         window.currentDataCache?.closest_city    || null,
+        // Last clicked city full data
+        clicked_city_name: window.lastClickedCityData?.name        || null,
+        clicked_city_temp: window.lastClickedCityData?.temp        || null,
+        clicked_city_aqi:  window.lastClickedCityData?.aqi         || null,
+        clicked_city_rain: window.lastClickedCityData?.rain        || null,
     };
 
     try {
