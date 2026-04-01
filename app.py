@@ -610,6 +610,8 @@ def create_app():
 
             # Clicked city context (real data from predict_on_point, not DB)
             clicked_city_name = data.get('clicked_city_name')
+            print(
+                f"[chat] clicked_city={clicked_city_name} aqi={data.get('clicked_city_aqi')} rain={data.get('clicked_city_rain')}")
             clicked_city_temp = data.get('clicked_city_temp')
             clicked_city_aqi = data.get('clicked_city_aqi')
             clicked_city_rain = data.get('clicked_city_rain')
