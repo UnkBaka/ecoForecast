@@ -649,20 +649,32 @@ def create_app():
             # ------------------------------------------------------------------
             # 5. System prompt
             # ------------------------------------------------------------------
+            # Weather code translation for Rule 4
+            weather_code_map = {
+                0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+                45: "Foggy", 48: "Foggy", 51: "Light drizzle", 53: "Drizzle",
+                55: "Heavy drizzle", 61: "Light rain", 63: "Moderate rain",
+                65: "Heavy rain", 80: "Rain showers", 81: "Rain showers",
+                82: "Heavy showers", 95: "Thunderstorm", 96: "Thunderstorm",
+            }
+            condition_text = weather_code_map.get(int(real_condition or 0), "Partly cloudy")
+
             system_instruction = f"""
-    You are EcoForecast AI, a precise weather assistant for Malaysia.
+            You are EcoForecast AI, a weather and air quality assistant for Malaysia ONLY.
 
-    {current_location_context}
+            {current_location_context}
+            - Condition (plain English): {condition_text}
 
-    {malaysia_context}
+            {malaysia_context}
 
-    STRICT RULES — never break these:
-    1. USER LOCATION: Always refer to the user's location as "{user_place}" — never say raw coordinates like "Lat 5.39, Lng 100.31". Say "Based on your location in {user_place}..." when answering questions about their area.
-    2. RAIN AT USER LOCATION: The rain probability at the user's location is exactly {real_rain}%. Never invent, estimate, or change this number.
-    3. OTHER CITIES: If the user asks about a city, check the MALAYSIA CITY DATA above. Known cities are: {known_cities_str}. If the city is listed, answer using ONLY those numbers. If it is NOT listed (e.g. Butterworth, Sungai Petani, Subang), say "I don't have live data for [city] right now, but I can tell you about nearby [nearest known city]."
-    4. FORMAT: 1-2 short friendly sentences. Use emojis naturally. No bullet points in replies.
-    5. STAY ON TOPIC: Answer exactly what was asked. Do not change the subject.
-    """
+            STRICT RULES — never break these:
+            1. LOCATION: Always refer to the user as being in "{user_place}". Never show raw coordinates.
+            2. RAIN: The rain probability at user's location is exactly {real_rain}%. Never invent this number.
+            3. CITY LOOKUP: When user mentions any city or abbreviation (SP=Sungai Petani, KL=Kuala Lumpur, PG=Penang, JB=Johor Bahru, KB=Kota Bharu, KK=Kota Kinabalu), search MALAYSIA CITY DATA carefully for a full or partial match. If found, answer with that city's exact numbers. Only say no data if truly not in the list.
+            4. CONDITION: Always use plain English condition. Current condition at user location is "{condition_text}". Never say "condition rating of X".
+            5. OFF-TOPIC: If the user asks anything unrelated to weather, air quality, or health impacts of air — reply ONLY with: "I can only help with weather and air quality questions! 🌤️ Try asking about the weather in your area or any Malaysian city."
+            6. FORMAT: 1-2 short friendly sentences. Emojis welcome. No bullet points.
+            """
 
             chat_completion = client.chat.completions.create(
                 messages=[
