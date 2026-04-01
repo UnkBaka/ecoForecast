@@ -643,8 +643,7 @@ def create_app():
     STRICT RULES:
     1. LOCATION: Always refer to the user as being in "{user_place}". Never show raw coordinates.
     2. RAIN: Rain probability at user's location is exactly {real_rain}%. Never invent this number.
-    3. CITY LOOKUP: When user asks about any city or abbreviation (SP=Sungai Petani, KL=Kuala Lumpur, PG=Penang, JB=Johor Bahru, KB=Kota Bharu, KK=Kota Kinabalu), search MALAYSIA CITY DATA for a full or partial match. Answer with that city's exact data. Only say no data if truly not in the list.
-    4. CONDITION: Current condition at user location is "{condition_text}". Never say "condition rating of X".
+    3. CITY LOOKUP: When user asks about a city, find it in MALAYSIA CITY DATA and answer with temperature and AQI. For rain probability of OTHER cities (not the user's location), say "I don't have live rain data for [city] — I can only show rain probability for your current location or a point you click on the map." Never invent a rain percentage for other cities.    4. CONDITION: Current condition at user location is "{condition_text}". Never say "condition rating of X".
     5. OFF-TOPIC: If user asks anything unrelated to weather, air quality, or health impacts — reply ONLY: "I can only help with weather and air quality questions! 🌤️ Try asking about the weather in your area or any Malaysian city."
     6. CONTEXT: If user asks "will it rain" or "how is it" without naming a city, check conversation history for the last mentioned city and answer for that city. If no city was mentioned, answer for user's location: {user_place}.
     7. FORMAT: 1-2 short friendly sentences. Emojis welcome. No bullet points.
@@ -670,11 +669,24 @@ def create_app():
     @app.route('/api/get_city_coords', methods=['GET'])
     def get_city_coords():
         city = request.args.get('city', '').strip()
+
+        # Expand common Malaysian abbreviations
+        abbreviations = {
+            'kl': 'Kuala Lumpur',
+            'jb': 'Johor Bahru',
+            'pg': 'Penang',
+            'kk': 'Kota Kinabalu',
+            'kb': 'Kota Bharu',
+            'sp': 'Sungai Petani',
+            'ipoh': 'Ipoh',
+        }
+        city_lookup = abbreviations.get(city.lower(), city)
+
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
             "SELECT name, lat, lon FROM locations WHERE name LIKE ? LIMIT 1",
-            (f"%{city}%",)
+            (f"%{city_lookup}%",)
         )
         row = cur.fetchone()
         conn.close()

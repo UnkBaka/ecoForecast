@@ -1064,7 +1064,7 @@ function zoomToMentionedCity(userMessage) {
     });
     cityGuess = cityGuess.replace(/[?.!,]/g, '').trim();
 
-    if (!cityGuess || cityGuess.length < 2) return;
+    if (!cityGuess || cityGuess.length < 1) return;
 
     fetch('/api/get_city_coords?city=' + encodeURIComponent(cityGuess))
         .then(r => r.json())
