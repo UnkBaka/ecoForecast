@@ -490,41 +490,36 @@ window.updateForecastView = function(range, e) {
 
     const all = currentDataCache.forecast_data;
     const now = new Date();
-
-    // Get the start of "Today" (00:00:00)
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    // Get the end of "Today" (23:59:59)
-    const todayEnd = todayStart + (24 * 60 * 60 * 1000) - 1;
-    // Get "6 hours from now"
-    const sixHoursLater = now.getTime() + (6 * 60 * 60 * 1000);
+    const currentHour = now.getHours();
 
     let filtered;
 
     if (range === 'short') {
-        // --- 6 HOURS: Current Hour + next 6 hours ---
+        // --- 6 HOURS ---
         filtered = all.filter(d => {
             if (d.time === 'Now') return true;
-            // Only look for hourly format (e.g., "19:00" or "2026-04-01 19:00")
-            const match = d.time.match(/(\d{2}):00/);
-            if (match) {
-                const hour = parseInt(match[1]);
-                const diff = (hour - currentHour + 24) % 24;
-                return diff > 0 && diff <= 6;
+            // 1. Must be hourly (has :) 2. Must NOT be a daily summary (no ,)
+            if (d.time.includes(':') && !d.time.includes(',')) {
+                const match = d.time.match(/(\d{2}):00/);
+                if (match) {
+                    const hour = parseInt(match[1]);
+                    const diff = (hour - currentHour + 24) % 24;
+                    return diff > 0 && diff <= 6;
+                }
             }
             return false;
         });
     } else if (range === 'medium') {
-        // --- 24 HOURS: Only Hourly points for the next 24 hours ---
+        // --- 24 HOURS ---
+        // Strictly only hourly increments, ignoring any day summaries
         filtered = all.filter(d => {
             if (d.time === 'Now') return true;
-
-            const isHourly = d.time.includes(':') && !d.time.includes(',');
-
-            return isHourly;
-        }).slice(0, 24); // Ensure we don't grab more than 24 points
+            // A true hourly point has a colon but NO comma
+            return d.time.includes(':') && !d.time.includes(',');
+        }).slice(0, 24);
     } else {
-        // --- 7 DAYS: Only the day summaries ---
-        // Must have a comma (e.g., "Thu, 02 Apr") or be "Now"
+        // --- 7 DAYS ---
+        // Only points that represent a full day (contain a comma)
         filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
     }
 
