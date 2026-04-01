@@ -493,15 +493,13 @@ window.updateForecastView = function(range, e) {
     // Filter based on button clicked
     let filtered;
     if (range === 'short') {
-        // 6 hours — first 7 points (Now + 1,2,3,4,5,6hr)
-        filtered = all.filter(d => ['Now','1 AM','2 AM','3 AM','4 AM','5 AM','6 AM',
-            '1 PM','2 PM','3 PM','4 PM','5 PM','6 PM',
-            '7 AM','8 AM','9 AM','10 AM','11 AM','12 PM'].includes(d.time) || d.time === 'Now').slice(0, 7);
+        // 6 hours — just take first 7 points (Now + next 6)
+        filtered = all.slice(0, 7);
     } else if (range === 'medium') {
-        // 24 hours — all hourly points
+        // 24 hours — all points that are not multi-day (no comma in label)
         filtered = all.filter(d => !d.time.includes(','));
     } else {
-        // 7 days — day points only
+        // 7 days — day points only (have comma) plus Now
         filtered = all.filter(d => d.time.includes(',') || d.time === 'Now');
     }
 
@@ -866,20 +864,21 @@ window.updateForecastView = function(range, e) {
         }
 
         data.forEach(row => {
-            let aqiColor = row.aqi <= 50 ? '#2ecc71' : (row.aqi <= 100 ? '#f1c40f' : '#e74c3c');
-
-            html += `
-            <div style="display:flex; justify-content:space-between; align-items: center; background: rgba(0,0,0,0.2); padding:15px; margin-bottom: 10px; border-radius: 12px; border-left: 4px solid #3498db; border-top: 1px solid rgba(255,255,255,0.05); border-right: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <div style="color:#3498db; font-weight: bold; font-size: 1.05rem; letter-spacing: 0.5px;">${row.date}</div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 0.75rem; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 1px;">AQI</span>
-                        <span style="background: ${aqiColor}20; color: ${aqiColor}; padding: 2px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; border: 1px solid ${aqiColor}50;">${row.aqi}</span>
-                    </div>
-                </div>
-                <div style="font-size: 1.4rem; font-weight: 800; color: white;">${row.temp}°C</div>
-            </div>`;
-        });
+        html += `
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    background:rgba(0,0,0,0.2); padding:15px; margin-bottom:10px;
+                    border-radius:12px; border-left:4px solid #3498db;
+                    border-top:1px solid rgba(255,255,255,0.05);
+                    border-right:1px solid rgba(255,255,255,0.05);
+                    border-bottom:1px solid rgba(255,255,255,0.05);">
+            <div style="color:#3498db; font-weight:bold; font-size:1.05rem; letter-spacing:0.5px;">
+                ${row.date}
+            </div>
+            <div style="font-size:1.4rem; font-weight:800; color:white;">
+                ${row.temp}°C
+            </div>
+        </div>`;
+    });
         container.innerHTML = html;
     }
 
