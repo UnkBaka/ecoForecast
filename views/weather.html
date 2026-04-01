@@ -1030,16 +1030,22 @@ window.updateForecastView = function(range, e) {
     const hasLocationIntent = locationTriggers.some(t => cleaned.includes(t));
     if (!hasLocationIntent) return;
 
-    // Strip filler words to extract just the city name
+    // Simple string removal instead of regex — avoids special character crashes
     const fillers = ['how about','how is','how are','what about','weather in',
-                     'weather at','rain in','aqi in','about','how','will it',
-                     'rain','weather','temperature','aqi','ltr','later','today',
-                     'tomorrow','the','in','at','lah','?','!','.'];
+                     'weather at','rain in','aqi in','will it rain in',
+                     'will it rain at','how the weather in','how the weather at',
+                     'about','weather','rain','temperature','aqi','will it',
+                     'how is','how are','the','in','at','lah','later','ltr',
+                     'today','tomorrow','how'];
+
+    // Sort by length descending so longer phrases are removed first
+    fillers.sort((a, b) => b.length - a.length);
+
     let cityGuess = cleaned;
     fillers.forEach(f => {
-        cityGuess = cityGuess.replace(new RegExp('\\b' + f + '\\b', 'gi'), '');
+        cityGuess = cityGuess.split(f).join('');  // plain split/join, no regex
     });
-    cityGuess = cityGuess.trim();
+    cityGuess = cityGuess.replace(/[?.!]/g, '').trim();  // only safe chars in regex
 
     if (!cityGuess || cityGuess.length < 2) return;
 
