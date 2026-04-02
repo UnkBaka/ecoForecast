@@ -754,10 +754,7 @@ def create_app():
             current_w = w_res.get('current_weather', {})
             time_list = hourly.get('time', [])
 
-            # ✅ Add precipitation_probability to your Open-Meteo URL
-            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&current_weather=true&hourly=temperature_2m,relative_humidity_2m,weathercode,precipitation_probability&timezone=auto"
-
-            # Then get current hour's rain probability
+            # Get precipitation probability from the hourly data
             precip_list = hourly.get('precipitation_probability', [])
             base_rain_chance = precip_list[current_hour] if current_hour < len(precip_list) else 0.0
 
@@ -776,7 +773,7 @@ def create_app():
                     if offset == 0:
                         display_time = "Now"
                     elif offset < 24:
-                        display_time = dt_obj.strftime("%#I %p")  # Windows
+                        display_time = dt_obj.strftime("%-I %p")  # Windows
                         # display_time = dt_obj.strftime("%-I %p")  # Linux/Mac
                     else:
                         display_time = dt_obj.strftime("%a, %d %b")
