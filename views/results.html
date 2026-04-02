@@ -45,9 +45,9 @@
             </div>
 
                         <div class="col-auto d-flex align-items-center gap-2 flex-wrap">
-                <input type="text" id="date-from" class="form-control form-control-sm" placeholder="From date" style="width:110px;">
+                <input type="date" id="date-from" class="form-control form-control-sm" placeholder="From date" style="width:110px;">
                 <span class="text-muted">→</span>
-                <input type="text" id="date-to" class="form-control form-control-sm" placeholder="To date" style="width:110px;">
+                <input type="date" id="date-to" class="form-control form-control-sm" placeholder="To date" style="width:110px;">
 
                 <button class="btn btn-sm btn-primary" onclick="applyCustomRange()">
                     <i class="bi bi-funnel-fill"></i> Apply
@@ -622,6 +622,113 @@ function exportCombinedPdf() {
     const fname = `Combined_Report_${analysisCity.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
     doc.save(fname);
 }
+
+// ─── DATE FILTERING LOGIC ───────────────────────────────────────
+
+// The main function that hides/shows rows based on dates
+function filterTableByDate(startDate, endDate) {
+    // If no start/end provided, assume we want all dates (All Time)
+    const startTime = startDate ? startDate.getTime() : 0;
+    const endTime = endDate ? endDate.getTime() : Infinity;
+
+    document.querySelectorAll('.city-group').forEach(group => {
+        group.querySelectorAll('.time-row').forEach(tr => {
+            const dateCell = tr.querySelector('td:first-child');
+            if (!dateCell) return;
+
+            // Parse the date from the table cell (e.g., "2026-04-02 19:00")
+            const rowDate = new Date(dateCell.textContent.trim());
+            const rowTime = rowDate.getTime();
+
+            // Check if the row's time falls within our selected range
+            if (rowTime >= startTime && rowTime <= endTime) {
+                tr.style.display = ''; // Show row
+            } else {
+                tr.style.display = 'none'; // Hide row
+            }
+        });
+    });
+}
+
+// Triggered when clicking "Today", "Last 7 Days", etc.
+function applyPreset(btn, days) {
+    // 1. Make the clicked button look active, reset others
+    document.querySelectorAll('.preset-btn').forEach(b => {
+        b.classList.remove('active', 'btn-primary', 'btn-secondary');
+        b.classList.add(b.dataset.range === "0" ? 'btn-outline-secondary' : 'btn-outline-primary');
+    });
+
+    if (btn.dataset.range === "0") {
+        btn.classList.replace('btn-outline-secondary', 'btn-secondary');
+        btn.classList.add('active');
+    } else {
+        btn.classList.replace('btn-outline-primary', 'btn-primary');
+        btn.classList.add('active');
+    }
+
+    // 2. Clear custom inputs
+    document.getElementById('date-from').value = '';
+    document.getElementById('date-to').value = '';
+
+    // 3. Calculate dates
+    if (days === 0) {
+        filterTableByDate(null, null); // All time
+        return;
+    }
+
+    const end = new Date(); // Right now
+    const start = new Date();
+
+    if (days === 1) {
+        start.setHours(0, 0, 0, 0); // Midnight today
+    } else {
+        start.setDate(start.getDate() - days);
+        start.setHours(0, 0, 0, 0);
+    }
+
+    filterTableByDate(start, end);
+}
+
+// Triggered when clicking the Custom "Apply" button
+function applyCustomRange() {
+    const fromVal = document.getElementById('date-from').value;
+    const toVal = document.getElementById('date-to').value;
+
+    if (!fromVal && !toVal) {
+        alert("Please select at least one date.");
+        return;
+    }
+
+    // Un-highlight preset buttons
+    document.querySelectorAll('.preset-btn').forEach(b => {
+        b.classList.remove('active', 'btn-primary', 'btn-secondary');
+        b.classList.add(b.dataset.range === "0" ? 'btn-outline-secondary' : 'btn-outline-primary');
+    });
+
+    let start = fromVal ? new Date(fromVal) : null;
+    let end = toVal ? new Date(toVal) : null;
+
+    // Make sure 'end' includes the whole day until 11:59 PM
+    if (end) end.setHours(23, 59, 59, 999);
+
+    filterTableByDate(start, end);
+}
+
+// Triggered when clicking "Clear"
+function clearAllFilters() {
+    document.getElementById('date-from').value = '';
+    document.getElementById('date-to').value = '';
+
+    // Click the "All time" button by default
+    const allTimeBtn = document.querySelector('.preset-btn[data-range="0"]');
+    if (allTimeBtn) applyPreset(allTimeBtn, 0);
+}
+
+// Auto-run the "Today" filter when the page first loads
+window.addEventListener('DOMContentLoaded', () => {
+    const todayBtn = document.querySelector('.preset-btn[data-range="1"]');
+    if (todayBtn) applyPreset(todayBtn, 1);
+});
 </script>
 
 {% endblock %}
