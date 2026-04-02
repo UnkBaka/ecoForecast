@@ -623,73 +623,64 @@ function exportCombinedPdf() {
     doc.save(fname);
 }
 
-// ─── DATE FILTERING LOGIC ───────────────────────────────────────
+// ─── DATE FILTERING LOGIC ───
 
-// The main function that hides/shows rows based on dates
 function filterTableByDate(startDate, endDate) {
-    // If no start/end provided, assume we want all dates (All Time)
     const startTime = startDate ? startDate.getTime() : 0;
     const endTime = endDate ? endDate.getTime() : Infinity;
 
     document.querySelectorAll('.city-group').forEach(group => {
+        let hasVisibleRows = false;
+
         group.querySelectorAll('.time-row').forEach(tr => {
-            const dateCell = tr.querySelector('td:first-child');
+            const dateCell = tr.querySelector('.time-cell');
             if (!dateCell) return;
 
-            // Parse the date from the table cell (e.g., "2026-04-02 19:00")
-            const rowDate = new Date(dateCell.textContent.trim());
+            // Get date from table (e.g., "2026-04-02 19:00")
+            const rowDate = new Date(dateCell.textContent.trim().replace(/-/g, '/'));
             const rowTime = rowDate.getTime();
 
-            // Check if the row's time falls within our selected range
+            // Hide or show the row
             if (rowTime >= startTime && rowTime <= endTime) {
-                tr.style.display = ''; // Show row
+                tr.style.display = '';
+                hasVisibleRows = true;
             } else {
-                tr.style.display = 'none'; // Hide row
+                tr.style.display = 'none';
             }
         });
+
+        // Hide the whole city accordion if it has no matching dates
+        group.style.display = hasVisibleRows ? '' : 'none';
     });
 }
 
-// Triggered when clicking "Today", "Last 7 Days", etc.
 function applyPreset(btn, days) {
-    // 1. Make the clicked button look active, reset others
-    document.querySelectorAll('.preset-btn').forEach(b => {
-        b.classList.remove('active', 'btn-primary', 'btn-secondary');
-        b.classList.add(b.dataset.range === "0" ? 'btn-outline-secondary' : 'btn-outline-primary');
-    });
+    // Highlight active button
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
 
-    if (btn.dataset.range === "0") {
-        btn.classList.replace('btn-outline-secondary', 'btn-secondary');
-        btn.classList.add('active');
-    } else {
-        btn.classList.replace('btn-outline-primary', 'btn-primary');
-        btn.classList.add('active');
-    }
-
-    // 2. Clear custom inputs
+    // Clear custom inputs
     document.getElementById('date-from').value = '';
     document.getElementById('date-to').value = '';
 
-    // 3. Calculate dates
     if (days === 0) {
         filterTableByDate(null, null); // All time
         return;
     }
 
-    const end = new Date(); // Right now
+    const end = new Date();
     const start = new Date();
 
     if (days === 1) {
         start.setHours(0, 0, 0, 0); // Midnight today
     } else {
-        start.setDate(start.getDate() - days);
+        start.setDate(start.getDate() - (days - 1));
         start.setHours(0, 0, 0, 0);
     }
 
     filterTableByDate(start, end);
 }
 
-// Triggered when clicking the Custom "Apply" button
 function applyCustomRange() {
     const fromVal = document.getElementById('date-from').value;
     const toVal = document.getElementById('date-to').value;
@@ -699,36 +690,23 @@ function applyCustomRange() {
         return;
     }
 
-    // Un-highlight preset buttons
-    document.querySelectorAll('.preset-btn').forEach(b => {
-        b.classList.remove('active', 'btn-primary', 'btn-secondary');
-        b.classList.add(b.dataset.range === "0" ? 'btn-outline-secondary' : 'btn-outline-primary');
-    });
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
 
-    let start = fromVal ? new Date(fromVal) : null;
-    let end = toVal ? new Date(toVal) : null;
+    let start = fromVal ? new Date(fromVal.replace(/-/g, '/')) : null;
+    let end = toVal ? new Date(toVal.replace(/-/g, '/')) : null;
 
-    // Make sure 'end' includes the whole day until 11:59 PM
     if (end) end.setHours(23, 59, 59, 999);
 
     filterTableByDate(start, end);
 }
 
-// Triggered when clicking "Clear"
 function clearAllFilters() {
     document.getElementById('date-from').value = '';
     document.getElementById('date-to').value = '';
 
-    // Click the "All time" button by default
-    const allTimeBtn = document.querySelector('.preset-btn[data-range="0"]');
-    if (allTimeBtn) applyPreset(allTimeBtn, 0);
-}
-
-// Auto-run the "Today" filter when the page first loads
-window.addEventListener('DOMContentLoaded', () => {
     const todayBtn = document.querySelector('.preset-btn[data-range="1"]');
     if (todayBtn) applyPreset(todayBtn, 1);
-});
+}
 </script>
 
 {% endblock %}

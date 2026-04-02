@@ -876,7 +876,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
         const pollutants = [];
         document.querySelectorAll('.pollutant-card').forEach(card => {
-            const name = card.querySelector('.text-muted')?.textContent?.trim() || '';
+            let rawName = card.querySelector('.text-muted')?.textContent?.trim() || '';
+            const name = rawName.replace(/sunny/gi, '').replace(/clear/gi, '').trim();
             if (name) {
                 pollutants.push({
                     name: name,
