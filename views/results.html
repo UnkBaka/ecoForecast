@@ -36,15 +36,30 @@
 
             <h4 class="fw-bold mb-3 text-dark"><i class="bi bi-robot text-primary me-2"></i> Detailed Prediction Logs</h4>
 
-            <div class="row mb-4 align-items-center justify-content-start">
-                <div class="col-md-6 col-lg-5">
-                    <div class="input-group shadow-sm rounded-pill overflow-hidden">
-                        <span class="input-group-text bg-primary text-white border-0">
-                            <i class="bi bi-calendar3"></i>
-                        </span>
-                        <input type="text" id="date-filter" class="form-control border-0 bg-white" placeholder="Filter logs & chart by date...">
-                        <button class="btn btn-danger border-0" type="button" id="clear-date">Clear</button>
-                    </div>
+            <div class="row mb-4 align-items-center justify-content-between">
+                <div class="col-auto d-flex gap-2 flex-wrap">
+                    <button class="btn btn-sm btn-outline-primary preset-btn active" data-range="1"
+                            onclick="applyPreset(this, 1)">Today</button>
+                    <button class="btn btn-sm btn-outline-primary preset-btn" data-range="7"
+                            onclick="applyPreset(this, 7)">Last 7 days</button>
+                    <button class="btn btn-sm btn-outline-primary preset-btn" data-range="30"
+                            onclick="applyPreset(this, 30)">Last 30 days</button>
+                    <button class="btn btn-sm btn-outline-secondary preset-btn" data-range="0"
+                            onclick="applyPreset(this, 0)">All time</button>
+                </div>
+
+                <div class="col-auto d-flex align-items-center gap-2">
+                    <input type="text" id="date-from" class="form-control form-control-sm"
+                           placeholder="From date" style="width:130px;">
+                    <span class="text-muted">→</span>
+                    <input type="text" id="date-to"   class="form-control form-control-sm"
+                           placeholder="To date"   style="width:130px;">
+                    <button class="btn btn-sm btn-primary" onclick="applyCustomRange()">
+                        <i class="bi bi-funnel-fill me-1"></i>Apply
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="clearAllFilters()">
+                        <i class="bi bi-x-lg me-1"></i>Clear
+                    </button>
                 </div>
             </div>
 
@@ -120,106 +135,244 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    $(document).ready(function() {
-        // ==========================================
-        // 1. CHART.JS LOGIC WITH TIME FILTERING
-        // ==========================================
-        let tempChart = null;
-        const rawWeatherData = {{ weather | tojson | safe }};
+    // ==========================================
+    // GLOBAL STATE & FUNCTIONS
+    // Defined outside so inline onclick handlers work
+    // ==========================================
+    let tempChart = null;
+    let rawWeatherData = [];
+    let currentCity = "";
+    let currentDateFilter = null;
+    let fpFrom = null;
+    let fpTo = null;
 
-        // Track the current user selections
-        let currentCity = "";
-        let currentDateFilter = null; // null means 'last 24 hours'
+    function loadChart(selectedCity, dateStr) {
+        let cityData = rawWeatherData.filter(row => row[0] === selectedCity);
 
-        function loadChart(selectedCity, dateStr) {
-            // First, filter by the chosen city
-            let cityData = rawWeatherData.filter(row => row[0] === selectedCity);
+        if (dateStr) {
+            cityData = cityData.filter(row => row[3].substring(0, 10) === dateStr);
+            $('#chart-subtitle').html(`<i class="bi bi-calendar-check"></i> Showing data for <strong>${dateStr}</strong>`);
+        } else {
+            const now = new Date();
+            const past24h = new Date(now.getTime() - (24 * 60 * 60 * 1000));
 
-            // Second, filter by time
-            if (dateStr) {
-                // User picked a specific date
-                cityData = cityData.filter(row => row[3].substring(0, 10) === dateStr);
-                $('#chart-subtitle').html(`<i class="bi bi-calendar-check"></i> Showing data for <strong>${dateStr}</strong>`);
-            } else {
-                // Default: Last 24 hours based on the user's current computer time
-                const now = new Date();
-                const past24h = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-
-                cityData = cityData.filter(row => {
-                    // Convert the database timestamp string into a JS Date object
-                    let rowDate = new Date(row[3].replace(/-/g, '/')); // replace ensures Safari compatibility
-                    return rowDate >= past24h && rowDate <= now;
-                });
-                $('#chart-subtitle').html(`<i class="bi bi-clock-history"></i> Showing last 24 hours`);
-            }
-
-            // Sort chronologically just in case
-            cityData.sort((a, b) => new Date(a[3].replace(/-/g, '/')) - new Date(b[3].replace(/-/g, '/')));
-
-            // Extract the columns for the graph
-            const labels = cityData.map(row => {
-                let d = new Date(row[3].replace(/-/g, '/'));
-                return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' });
+            cityData = cityData.filter(row => {
+                let rowDate = new Date(row[3].replace(/-/g, '/'));
+                return rowDate >= past24h && rowDate <= now;
             });
-            const actualTemps = cityData.map(row => row[2]);
-            const aiTemps = cityData.map(row => row[1]);
-
-            const ctx = document.getElementById('tempChart').getContext('2d');
-            if (tempChart) tempChart.destroy();
-
-            // Handle empty data states gracefully
-            if (cityData.length === 0) {
-                $('#chart-subtitle').append(' <span class="text-danger">(No data found for this period)</span>');
-            }
-
-            tempChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Actual Temp (°C)',
-                            data: actualTemps,
-                            borderColor: '#0d6efd',
-                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            fill: true,
-                            pointRadius: 3
-                        },
-                        {
-                            label: 'AI Predicted Temp (°C)',
-                            data: aiTemps,
-                            borderColor: '#dc3545',
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            tension: 0.4,
-                            fill: false,
-                            pointRadius: 3
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            grid: { color: 'rgba(0,0,0,0.05)' },
-                            ticks: { color: '#6c757d' },
-                            title: { display: true, text: 'Temperature (°C)' }
-                        },
-                        x: {
-                            ticks: { color: '#6c757d', maxTicksLimit: 8 }
-                        }
-                    },
-                    plugins: {
-                        legend: { display: true, position: 'top' },
-                        tooltip: { mode: 'index', intersect: false }
-                    }
-                }
-            });
+            $('#chart-subtitle').html(`<i class="bi bi-clock-history"></i> Showing last 24 hours`);
         }
+
+        cityData.sort((a, b) => new Date(a[3].replace(/-/g, '/')) - new Date(b[3].replace(/-/g, '/')));
+
+        const labels = cityData.map(row => {
+            let d = new Date(row[3].replace(/-/g, '/'));
+            return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' });
+        });
+        const actualTemps = cityData.map(row => row[2]);
+        const aiTemps = cityData.map(row => row[1]);
+
+        const ctx = document.getElementById('tempChart').getContext('2d');
+        if (tempChart) tempChart.destroy();
+
+        if (cityData.length === 0) {
+            $('#chart-subtitle').append(' <span class="text-danger">(No data found for this period)</span>');
+        }
+
+        tempChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Actual Temp (°C)',
+                        data: actualTemps,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'AI Predicted Temp (°C)',
+                        data: aiTemps,
+                        borderColor: '#dc3545',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.4,
+                        fill: false,
+                        pointRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: '#6c757d' },
+                        title: { display: true, text: 'Temperature (°C)' }
+                    },
+                    x: {
+                        ticks: { color: '#6c757d', maxTicksLimit: 8 }
+                    }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: { mode: 'index', intersect: false }
+                }
+            }
+        });
+    }
+
+    // ── Date range filter logic ──────────────────────────────────
+    function applyPreset(btn, days) {
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        fpFrom.clear(); fpTo.clear();
+
+        const now  = new Date();
+        let from   = null;
+
+        if (days === 0) {
+            filterByRange(null, null);
+            currentDateFilter = null;
+            loadChart(currentCity, null);
+            return;
+        }
+
+        from = new Date(now);
+        from.setDate(from.getDate() - (days - 1));
+        from.setHours(0, 0, 0, 0);
+
+        const fromStr = from.toISOString().slice(0, 10);
+        const toStr   = now.toISOString().slice(0, 10);
+
+        filterByRange(fromStr, toStr);
+
+        currentDateFilter = days === 1 ? toStr : null;
+        if (days === 1) {
+            loadChart(currentCity, toStr);
+        } else {
+            loadChartRange(currentCity, fromStr, toStr);
+        }
+    }
+
+    function applyCustomRange() {
+        const from = document.getElementById('date-from').value;
+        const to   = document.getElementById('date-to').value;
+
+        if (!from && !to) { clearAllFilters(); return; }
+
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+
+        filterByRange(from || null, to || null);
+        loadChartRange(currentCity, from || null, to || null);
+    }
+
+    function clearAllFilters() {
+        fpFrom.clear(); fpTo.clear();
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.preset-btn[data-range="1"]').classList.add('active');
+
+        filterByRange(null, null);
+        currentDateFilter = null;
+        loadChart(currentCity, null);
+    }
+
+    function filterByRange(from, to) {
+        $('.city-group').each(function() {
+            let hasVisible = false;
+            $(this).find('.time-row').each(function() {
+                const rowDate = $(this).find('.time-cell').text().trim().slice(0, 10);
+                let show = true;
+                if (from && rowDate < from) show = false;
+                if (to   && rowDate > to)   show = false;
+                $(this).toggle(show);
+                if (show) hasVisible = true;
+            });
+            $(this).toggle(hasVisible);
+        });
+    }
+
+    function loadChartRange(selectedCity, fromDate, toDate) {
+        let cityData = rawWeatherData.filter(row => row[0] === selectedCity);
+
+        if (fromDate || toDate) {
+            cityData = cityData.filter(row => {
+                const d = row[3].slice(0, 10);
+                if (fromDate && d < fromDate) return false;
+                if (toDate   && d > toDate)   return false;
+                return true;
+            });
+            const label = fromDate && toDate
+                ? `${fromDate} → ${toDate}`
+                : fromDate ? `From ${fromDate}` : `Until ${toDate}`;
+            $('#chart-subtitle').html(`<i class="bi bi-calendar-range"></i> Showing: <strong>${label}</strong>`);
+        } else {
+            loadChart(selectedCity, null);
+            return;
+        }
+
+        cityData.sort((a, b) => new Date(a[3].replace(/-/g,'/')) - new Date(b[3].replace(/-/g,'/')));
+
+        const labels      = cityData.map(row => {
+            const d = new Date(row[3].replace(/-/g,'/'));
+            return d.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        });
+        const actualTemps = cityData.map(row => row[2]);
+        const aiTemps     = cityData.map(row => row[1]);
+
+        const ctx = document.getElementById('tempChart').getContext('2d');
+        if (tempChart) tempChart.destroy();
+
+        if (cityData.length === 0) {
+            $('#chart-subtitle').append(' <span class="text-danger">(No data found)</span>');
+        }
+
+        tempChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Actual Temp (°C)',
+                        data: actualTemps,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13,110,253,0.1)',
+                        borderWidth: 2, tension: 0.4, fill: true, pointRadius: 2
+                    },
+                    {
+                        label: 'AI Predicted Temp (°C)',
+                        data: aiTemps,
+                        borderColor: '#dc3545',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2, borderDash: [5,5],
+                        tension: 0.4, fill: false, pointRadius: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#6c757d' },
+                         title: { display: true, text: 'Temperature (°C)' } },
+                    x: { ticks: { color: '#6c757d', maxTicksLimit: 10 } }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: { mode: 'index', intersect: false }
+                }
+            }
+        });
+    }
+
+    $(document).ready(function() {
+        rawWeatherData = {{ weather | tojson | safe }};
 
         // Initialize City Selector and load the default 24h chart
         const citySelector = document.getElementById('citySelector');
@@ -227,64 +380,27 @@
             currentCity = citySelector.options[0].value;
             loadChart(currentCity, currentDateFilter); // Initial load
 
-            // Listen for City changes
             citySelector.addEventListener('change', (e) => {
                 currentCity = e.target.value;
-                loadChart(currentCity, currentDateFilter);
+                // Re-apply range context if inputs are populated
+                const from = document.getElementById('date-from').value;
+                const to = document.getElementById('date-to').value;
+                if (from || to) {
+                    loadChartRange(currentCity, from || null, to || null);
+                } else {
+                    loadChart(currentCity, currentDateFilter);
+                }
             });
         }
 
-        // ==========================================
-        // 2. FLATPICKR / ACCORDION FILTER LOGIC
-        // ==========================================
-        let validDates = [];
-        try {
-            validDates = {{ available_dates | tojson | safe }};
-        } catch(e) {
-            console.warn("No available dates provided by backend.");
-        }
-
-        const calendar = flatpickr("#date-filter", {
-            enable: validDates,
+        // Init flatpickr on both inputs
+        fpFrom = flatpickr("#date-from", {
             dateFormat: "Y-m-d",
-            onChange: function(selectedDates, dateStr, instance) {
-                // 1. Update the Accordion
-                $('.city-group').each(function() {
-                    let hasVisibleRows = false;
-                    $(this).find('.time-row').each(function() {
-                        let rowTimeText = $(this).find('.time-cell').text().trim();
-                        let rowDate = rowTimeText.substring(0, 10);
-
-                        if (rowDate === dateStr) {
-                            $(this).show();
-                            hasVisibleRows = true;
-                        } else {
-                            $(this).hide();
-                        }
-                    });
-                    if (hasVisibleRows) {
-                        $(this).show();
-                    } else {
-                        $(this).hide();
-                    }
-                });
-
-                // 2. Update the Chart!
-                currentDateFilter = dateStr;
-                loadChart(currentCity, currentDateFilter);
-            }
+            onChange: function() { /* user will click Apply */ }
         });
-
-        // Clear Date Logic
-        $('#clear-date').on('click', function() {
-            calendar.clear();
-
-            // 1. Reset Accordion
-            $('.city-group, .time-row').show();
-
-            // 2. Reset Chart back to 24 hours
-            currentDateFilter = null;
-            loadChart(currentCity, currentDateFilter);
+        fpTo = flatpickr("#date-to", {
+            dateFormat: "Y-m-d",
+            onChange: function() { /* user will click Apply */ }
         });
     });
 </script>
