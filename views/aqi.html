@@ -863,6 +863,45 @@ function exportCombinedPdf() {
     const fname = `EcoForecast_Report_${city.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
     doc.save(fname);
 }
+
+// Save AQI data to LocalStorage so results.html can combine it into the PDF
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        let doeStation = '';
+        document.querySelectorAll('.border-bottom span').forEach(el => {
+            if (el.textContent.includes('Nearest DOE')) {
+                doeStation = el.textContent.replace('Nearest DOE station:', '').replace('APIMS reference', '').trim();
+            }
+        });
+
+        const pollutants = [];
+        document.querySelectorAll('.pollutant-card').forEach(card => {
+            const name = card.querySelector('.text-muted')?.textContent?.trim() || '';
+            if (name) {
+                pollutants.push({
+                    name: name,
+                    value: card.querySelector('.fw-bold.fs-5')?.childNodes[0]?.textContent?.trim() || '',
+                    unit: card.querySelector('.fw-bold.fs-5 small')?.textContent?.trim() || '',
+                    level: card.querySelector('[class*="fw-bold mt-1"]')?.textContent?.trim() || '',
+                    pct: parseFloat(card.querySelector('.p-bar-fill')?.style?.width) || 0
+                });
+            }
+        });
+
+        const aqiDataToShare = {
+            city: document.querySelector('.card-header h4')?.textContent?.replace('Live Report:', '').trim() || 'Unknown',
+            timestamp: document.querySelector('.card-header .badge')?.textContent?.trim() || new Date().toLocaleString(),
+            temp: document.querySelector('.card-body .col-md-4:nth-child(1) h2')?.textContent?.trim() || '--',
+            wind: document.querySelector('.card-body .col-md-4:nth-child(2) h2')?.textContent?.trim() || '--',
+            aqiVal: parseInt(document.querySelector('.gauge-num')?.textContent?.trim()) || 0,
+            doeStation: doeStation,
+            pollutants: pollutants
+        };
+
+        // Save to browser memory
+        localStorage.setItem('shared_aqi_data', JSON.stringify(aqiDataToShare));
+    }, 1000); // Wait 1 second to ensure page is fully rendered
+});
 </script>
 
 {% endif %}
