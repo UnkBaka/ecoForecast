@@ -1,292 +1,333 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="container py-5">
-    <div class="text-center mb-5">
-        <h1 class="display-5 fw-bold text-primary">AI & Data Analysis</h1>
-        <p class="lead text-muted">
-            Evaluating historical trends and AI model accuracy against real-world data.
-        </p>
-    </div>
+// =============================================================
+// EcoForecast — Results/AI Analysis Page PDF Export
+// Uses jsPDF (already loaded via CDN in results.html)
+// Call exportResultsPdf() from the Export button onclick
+// =============================================================
 
-    <div class="row justify-content-center mb-5">
-        <div class="col-md-10">
-            <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-3">
-                    <h5 class="m-0"><i class="bi bi-graph-up-arrow text-info me-2"></i> Temperature Trend Analysis</h5>
+function exportResultsPdf() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-                    <select id="citySelector" class="form-select form-select-sm w-auto bg-dark text-white border-secondary">
-                        {% for city, records in weather|groupby('0') %}
-                            <option value="{{ city }}">{{ city }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="card-body bg-white p-4">
-                    <div class="d-flex justify-content-between text-muted mb-2">
-                        <small id="chart-subtitle" class="text-primary fw-bold"><i class="bi bi-clock-history"></i> Showing last 24 hours</small>
-                        <small><i class="bi bi-info-circle"></i> Actual (Blue) vs AI Predicted (Dashed Red)</small>
-                    </div>
-                    <div style="height: 350px; position: relative;">
-                        <canvas id="tempChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="row justify-content-center">
-        <div class="col-md-10">
+    const W      = 210;
+    const margin = 14;
+    let y        = 0;
 
-            <h4 class="fw-bold mb-3 text-dark"><i class="bi bi-robot text-primary me-2"></i> Detailed Prediction Logs</h4>
+    const blue  = [25,  118, 210];
+    const red   = [220,  53,  69];
+    const gray  = [108, 117, 125];
+    const light = [248, 249, 250];
+    const dark  = [33,   37,  41];
+    const green = [25,  135,  84];
 
-            <div class="row mb-4 align-items-center justify-content-start">
-                <div class="col-md-6 col-lg-5">
-                    <div class="input-group shadow-sm rounded-pill overflow-hidden">
-                        <span class="input-group-text bg-primary text-white border-0">
-                            <i class="bi bi-calendar3"></i>
-                        </span>
-                        <input type="text" id="date-filter" class="form-control border-0 bg-white" placeholder="Filter logs & chart by date...">
-                        <button class="btn btn-danger border-0" type="button" id="clear-date">Clear</button>
-                    </div>
-                </div>
-            </div>
+    // ── Scrape current selections from the page ──────────────
+    const citySelector  = document.getElementById('citySelector');
+    const selectedCity  = citySelector ? citySelector.value : 'Unknown';
+    const dateFilterEl  = document.getElementById('date-filter');
+    const selectedDate  = dateFilterEl ? dateFilterEl.value : '';
+    const subtitleEl    = document.getElementById('chart-subtitle');
+    const periodLabel   = subtitleEl ? subtitleEl.textContent.trim() : '';
 
-            {% if weather %}
-            <div class="accordion shadow-sm rounded-4 overflow-hidden" id="cityAccordion">
+    // ── Scrape visible table rows for selected city ──────────
+    const rows = [];
+    document.querySelectorAll('.city-group').forEach(group => {
+        const cityBtn = group.querySelector('.accordion-button');
+        const groupCity = cityBtn ? cityBtn.textContent.trim().replace(/\s+/g, ' ') : '';
+        if (!groupCity.includes(selectedCity)) return;
 
-                {% for city, records in weather|groupby('0') %}
-                <div class="accordion-item border-0 border-bottom city-group">
-                    <h2 class="accordion-header" id="heading-{{ loop.index }}">
-                        <button class="accordion-button collapsed fs-5 fw-bold text-dark bg-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}">
-                            <i class="bi bi-geo-alt-fill text-primary me-3"></i> {{ city }}
-                        </button>
-                    </h2>
-                    <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse bg-light" data-bs-parent="#cityAccordion">
-                        <div class="accordion-body p-0">
-
-                            <div class="table-responsive shadow-inner" style="max-height: 400px; overflow-y: auto;">
-                                <table class="table table-hover align-middle mb-0 text-center">
-                                    <thead class="table-light text-muted sticky-top" style="z-index: 2; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem;">
-                                        <tr>
-                                            <th scope="col" class="text-start ps-4">Recorded Time</th>
-                                            <th scope="col">Actual Temp</th>
-                                            <th scope="col">AI Predicted Temp</th>
-                                            <th scope="col">Actual Weather</th>
-                                            <th scope="col">AI Predicted Weather</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="border-top-0">
-                                        {% for row in records %}
-                                        <tr class="time-row">
-                                            <td class="text-start ps-4 text-nowrap time-cell"><strong>{{ row[3] }}</strong></td>
-                                            <td>{% if row[2] != None %}{{ row[2] }}°C{% else %}<span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>{% endif %}</td>
-                                            <td>
-                                                {% if row[1] != None %}
-                                                    <span class="badge rounded-pill bg-primary px-3 py-2" style="width: 80px;">{{ row[1] }}°C</span>
-                                                {% else %}
-                                                    <span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>{% if row[4] != None %}{{ row[4] }}{% else %}<span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>{% endif %}</td>
-                                            <td>
-                                                {% if row[5] != None %}
-                                                    <span class="badge bg-info text-dark px-3 py-2 text-wrap d-inline-flex align-items-center justify-content-center" style="width: 200px; min-height: 40px; line-height: 1.4;">{{ row[5] }}</span>
-                                                {% else %}
-                                                    <span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="alert alert-warning text-center mt-3 rounded-4 shadow-sm">
-                No prediction data available yet. Please wait for the background service to fetch data.
-            </div>
-            {% endif %}
-
-        </div>
-    </div>
-</div>
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<script>
-    $(document).ready(function() {
-        // ==========================================
-        // 1. CHART.JS LOGIC WITH TIME FILTERING
-        // ==========================================
-        let tempChart = null;
-        const rawWeatherData = {{ weather | tojson | safe }};
-
-        // Track the current user selections
-        let currentCity = "";
-        let currentDateFilter = null; // null means 'last 24 hours'
-
-        function loadChart(selectedCity, dateStr) {
-            // First, filter by the chosen city
-            let cityData = rawWeatherData.filter(row => row[0] === selectedCity);
-
-            // Second, filter by time
-            if (dateStr) {
-                // User picked a specific date
-                cityData = cityData.filter(row => row[3].substring(0, 10) === dateStr);
-                $('#chart-subtitle').html(`<i class="bi bi-calendar-check"></i> Showing data for <strong>${dateStr}</strong>`);
-            } else {
-                // Default: Last 24 hours based on the user's current computer time
-                const now = new Date();
-                const past24h = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-
-                cityData = cityData.filter(row => {
-                    // Convert the database timestamp string into a JS Date object
-                    let rowDate = new Date(row[3].replace(/-/g, '/')); // replace ensures Safari compatibility
-                    return rowDate >= past24h && rowDate <= now;
-                });
-                $('#chart-subtitle').html(`<i class="bi bi-clock-history"></i> Showing last 24 hours`);
-            }
-
-            // Sort chronologically just in case
-            cityData.sort((a, b) => new Date(a[3].replace(/-/g, '/')) - new Date(b[3].replace(/-/g, '/')));
-
-            // Extract the columns for the graph
-            const labels = cityData.map(row => {
-                let d = new Date(row[3].replace(/-/g, '/'));
-                return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' });
+        group.querySelectorAll('.time-row').forEach(tr => {
+            if (tr.style.display === 'none') return; // skip filtered-out rows
+            const cells = tr.querySelectorAll('td');
+            if (cells.length < 5) return;
+            rows.push({
+                time:       cells[0].textContent.trim(),
+                actual:     cells[1].textContent.trim(),
+                predicted:  cells[2].textContent.trim(),
+                actWeather: cells[3].textContent.trim(),
+                aiWeather:  cells[4].textContent.trim(),
             });
-            const actualTemps = cityData.map(row => row[2]);
-            const aiTemps = cityData.map(row => row[1]);
-
-            const ctx = document.getElementById('tempChart').getContext('2d');
-            if (tempChart) tempChart.destroy();
-
-            // Handle empty data states gracefully
-            if (cityData.length === 0) {
-                $('#chart-subtitle').append(' <span class="text-danger">(No data found for this period)</span>');
-            }
-
-            tempChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Actual Temp (°C)',
-                            data: actualTemps,
-                            borderColor: '#0d6efd',
-                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            fill: true,
-                            pointRadius: 3
-                        },
-                        {
-                            label: 'AI Predicted Temp (°C)',
-                            data: aiTemps,
-                            borderColor: '#dc3545',
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            tension: 0.4,
-                            fill: false,
-                            pointRadius: 3
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            grid: { color: 'rgba(0,0,0,0.05)' },
-                            ticks: { color: '#6c757d' },
-                            title: { display: true, text: 'Temperature (°C)' }
-                        },
-                        x: {
-                            ticks: { color: '#6c757d', maxTicksLimit: 8 }
-                        }
-                    },
-                    plugins: {
-                        legend: { display: true, position: 'top' },
-                        tooltip: { mode: 'index', intersect: false }
-                    }
-                }
-            });
-        }
-
-        // Initialize City Selector and load the default 24h chart
-        const citySelector = document.getElementById('citySelector');
-        if (citySelector && citySelector.options.length > 0) {
-            currentCity = citySelector.options[0].value;
-            loadChart(currentCity, currentDateFilter); // Initial load
-
-            // Listen for City changes
-            citySelector.addEventListener('change', (e) => {
-                currentCity = e.target.value;
-                loadChart(currentCity, currentDateFilter);
-            });
-        }
-
-        // ==========================================
-        // 2. FLATPICKR / ACCORDION FILTER LOGIC
-        // ==========================================
-        let validDates = [];
-        try {
-            validDates = {{ available_dates | tojson | safe }};
-        } catch(e) {
-            console.warn("No available dates provided by backend.");
-        }
-
-        const calendar = flatpickr("#date-filter", {
-            enable: validDates,
-            dateFormat: "Y-m-d",
-            onChange: function(selectedDates, dateStr, instance) {
-                // 1. Update the Accordion
-                $('.city-group').each(function() {
-                    let hasVisibleRows = false;
-                    $(this).find('.time-row').each(function() {
-                        let rowTimeText = $(this).find('.time-cell').text().trim();
-                        let rowDate = rowTimeText.substring(0, 10);
-
-                        if (rowDate === dateStr) {
-                            $(this).show();
-                            hasVisibleRows = true;
-                        } else {
-                            $(this).hide();
-                        }
-                    });
-                    if (hasVisibleRows) {
-                        $(this).show();
-                    } else {
-                        $(this).hide();
-                    }
-                });
-
-                // 2. Update the Chart!
-                currentDateFilter = dateStr;
-                loadChart(currentCity, currentDateFilter);
-            }
-        });
-
-        // Clear Date Logic
-        $('#clear-date').on('click', function() {
-            calendar.clear();
-
-            // 1. Reset Accordion
-            $('.city-group, .time-row').show();
-
-            // 2. Reset Chart back to 24 hours
-            currentDateFilter = null;
-            loadChart(currentCity, currentDateFilter);
         });
     });
-</script>
-{% endblock %}
+
+    // ── Header band ──────────────────────────────────────────
+    doc.setFillColor(...blue);
+    doc.rect(0, 0, W, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('EcoForecast Malaysia', margin, 11);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('AI & Data Analysis Report', margin, 17);
+    doc.text(`Generated: ${new Date().toLocaleString('en-MY')}`, margin, 22);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('OFFICIAL REPORT', W - margin, 17, { align: 'right' });
+    y = 35;
+
+    // ── Report info row ──────────────────────────────────────
+    doc.setFillColor(...light);
+    doc.roundedRect(margin, y, W - margin * 2, 16, 3, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...dark);
+    doc.text(selectedCity, margin + 4, y + 7);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...gray);
+    doc.text(periodLabel || (selectedDate ? `Date: ${selectedDate}` : 'Last 24 hours'), margin + 4, y + 13);
+    doc.text(`Total records: ${rows.length}`, W - margin - 4, y + 10, { align: 'right' });
+    y += 22;
+
+    // ── Chart snapshot note ──────────────────────────────────
+    doc.setFillColor(232, 244, 253);
+    doc.roundedRect(margin, y, W - margin * 2, 10, 2, 2, 'F');
+    doc.setDrawColor(...blue);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, y, W - margin * 2, 10, 2, 2, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...blue);
+    doc.text('Temperature Trend Analysis', margin + 4, y + 4.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...dark);
+    doc.text('Blue = Actual temperature recorded   |   Dashed Red = AI predicted temperature', margin + 4, y + 9);
+    y += 15;
+
+    // ── Mini chart — draw temperature sparklines ─────────────
+    if (rows.length > 0) {
+        const chartH  = 40;
+        const chartW  = W - margin * 2;
+        const chartX  = margin;
+        const chartY  = y;
+
+        // Background
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(chartX, chartY, chartW, chartH, 3, 3, 'F');
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(chartX, chartY, chartW, chartH, 3, 3, 'S');
+
+        // Extract numeric temps
+        const actuals    = rows.map(r => parseFloat(r.actual)).filter(v => !isNaN(v));
+        const predicted  = rows.map(r => parseFloat(r.predicted)).filter(v => !isNaN(v));
+        const allTemps   = [...actuals, ...predicted];
+
+        if (allTemps.length > 0) {
+            const tMin    = Math.min(...allTemps) - 1;
+            const tMax    = Math.max(...allTemps) + 1;
+            const tRange  = tMax - tMin || 1;
+            const padX    = 8;
+            const padY    = 6;
+            const plotW   = chartW - padX * 2;
+            const plotH   = chartH - padY * 2;
+
+            const toX = (i, total) => chartX + padX + (i / Math.max(total - 1, 1)) * plotW;
+            const toY = (temp)     => chartY + padY + plotH - ((temp - tMin) / tRange) * plotH;
+
+            // Grid lines (3 horizontal)
+            doc.setDrawColor(240, 240, 240);
+            doc.setLineWidth(0.2);
+            for (let g = 0; g <= 2; g++) {
+                const gy = chartY + padY + (plotH / 2) * g;
+                doc.line(chartX + padX, gy, chartX + padX + plotW, gy);
+            }
+
+            // Draw actual line (blue)
+            doc.setDrawColor(...blue);
+            doc.setLineWidth(0.8);
+            const actRows = rows.filter(r => !isNaN(parseFloat(r.actual)));
+            for (let i = 1; i < actRows.length; i++) {
+                const x1 = toX(i-1, actRows.length);
+                const y1 = toY(parseFloat(actRows[i-1].actual));
+                const x2 = toX(i,   actRows.length);
+                const y2 = toY(parseFloat(actRows[i].actual));
+                doc.line(x1, y1, x2, y2);
+            }
+
+            // Draw predicted line (red dashed)
+            doc.setDrawColor(...red);
+            doc.setLineWidth(0.6);
+            doc.setLineDashPattern([1, 1], 0);
+            const predRows = rows.filter(r => !isNaN(parseFloat(r.predicted)));
+            for (let i = 1; i < predRows.length; i++) {
+                const x1 = toX(i-1, predRows.length);
+                const y1 = toY(parseFloat(predRows[i-1].predicted));
+                const x2 = toX(i,   predRows.length);
+                const y2 = toY(parseFloat(predRows[i].predicted));
+                doc.line(x1, y1, x2, y2);
+            }
+            doc.setLineDashPattern([], 0);
+
+            // Y axis labels
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(6);
+            doc.setTextColor(...gray);
+            doc.text(`${tMax.toFixed(1)}°C`, chartX + 1, chartY + padY + 1);
+            doc.text(`${tMin.toFixed(1)}°C`, chartX + 1, chartY + chartH - 2);
+
+            // Legend
+            doc.setFillColor(...blue);
+            doc.rect(chartX + chartW - 55, chartY + 3, 6, 2, 'F');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(6);
+            doc.setTextColor(...dark);
+            doc.text('Actual', chartX + chartW - 47, chartY + 5);
+
+            doc.setFillColor(...red);
+            doc.rect(chartX + chartW - 30, chartY + 3, 6, 2, 'F');
+            doc.text('AI Predicted', chartX + chartW - 22, chartY + 5);
+        }
+
+        y += chartH + 6;
+    }
+
+    // ── Prediction logs table ────────────────────────────────
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...dark);
+    doc.text('Detailed Prediction Logs', margin, y + 5);
+    doc.setDrawColor(...blue);
+    doc.setLineWidth(0.5);
+    doc.line(margin, y + 7, W - margin, y + 7);
+    y += 12;
+
+    // Table header
+    const cols   = [38, 20, 22, 42, 60];
+    const headers = ['Recorded Time', 'Actual', 'AI Pred.', 'Actual Weather', 'AI Predicted Weather'];
+
+    doc.setFillColor(...blue);
+    doc.rect(margin, y, W - margin * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    let cx = margin + 2;
+    headers.forEach((h, i) => { doc.text(h, cx, y + 5); cx += cols[i]; });
+    y += 7;
+
+    if (rows.length === 0) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(...gray);
+        doc.text('No records found for the selected city/date.', margin, y + 6);
+        y += 12;
+    } else {
+        // Limit rows to avoid overflow — max ~25 rows per page
+        const maxRows = 25;
+        const displayRows = rows.slice(0, maxRows);
+
+        displayRows.forEach((row, idx) => {
+            // New page if needed
+            if (y > 265) {
+                doc.addPage();
+                y = 15;
+                // Re-draw header on new page
+                doc.setFillColor(...blue);
+                doc.rect(margin, y, W - margin * 2, 7, 'F');
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(7.5);
+                doc.setTextColor(255, 255, 255);
+                cx = margin + 2;
+                headers.forEach((h, i) => { doc.text(h, cx, y + 5); cx += cols[i]; });
+                y += 7;
+            }
+
+            const rowColor = idx % 2 === 0 ? [255, 255, 255] : [248, 249, 250];
+            doc.setFillColor(...rowColor);
+            doc.rect(margin, y, W - margin * 2, 8, 'F');
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(...dark);
+
+            const isPending = (val) => val.toLowerCase().includes('pending') || val === '--' || val === '';
+
+            cx = margin + 2;
+            doc.text(row.time.slice(0, 16), cx, y + 5);          cx += cols[0];
+
+            // Actual temp
+            if (isPending(row.actual)) {
+                doc.setTextColor(...gray);
+                doc.setFont('helvetica', 'italic');
+                doc.text('Pending', cx, y + 5);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...dark);
+            } else {
+                doc.text(row.actual.replace('°C', '') + '°C', cx, y + 5);
+            }
+            cx += cols[1];
+
+            // AI predicted temp — blue badge
+            if (!isPending(row.predicted)) {
+                doc.setFillColor(...blue);
+                doc.roundedRect(cx, y + 1, 16, 6, 2, 2, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(7);
+                doc.text(row.predicted.replace('°C', '') + '°C', cx + 8, y + 5, { align: 'center' });
+                doc.setTextColor(...dark);
+                doc.setFontSize(7.5);
+            } else {
+                doc.setTextColor(...gray);
+                doc.setFont('helvetica', 'italic');
+                doc.text('Pending', cx, y + 5);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...dark);
+            }
+            cx += cols[2];
+
+            // Actual weather
+            const actW = row.actWeather.replace(/[^\x00-\x7F]/g, '').trim();
+            doc.text(actW.slice(0, 20), cx, y + 5);
+            cx += cols[3];
+
+            // AI predicted weather — info badge
+            const aiW = row.aiWeather.replace(/[^\x00-\x7F]/g, '').trim();
+            if (!isPending(aiW)) {
+                doc.setFillColor(13, 202, 240);
+                const badgeW = Math.min(cols[4] - 4, 55);
+                doc.roundedRect(cx, y + 1, badgeW, 6, 2, 2, 'F');
+                doc.setTextColor(33, 37, 41);
+                doc.setFontSize(6.5);
+                const aiLabel = doc.splitTextToSize(aiW, badgeW - 2);
+                doc.text(aiLabel[0] || '', cx + 2, y + 5);
+                doc.setTextColor(...dark);
+                doc.setFontSize(7.5);
+            } else {
+                doc.setTextColor(...gray);
+                doc.setFont('helvetica', 'italic');
+                doc.text('Pending', cx, y + 5);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...dark);
+            }
+
+            y += 8;
+        });
+
+        if (rows.length > maxRows) {
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(7);
+            doc.setTextColor(...gray);
+            doc.text(`... and ${rows.length - maxRows} more records (use date filter to narrow results)`, margin, y + 5);
+            y += 8;
+        }
+    }
+
+    // ── Footer ───────────────────────────────────────────────
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+        doc.setPage(p);
+        doc.setFillColor(...blue);
+        doc.rect(0, 287, W, 10, 'F');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text(
+            `EcoForecast Malaysia  |  AI & Data Analysis  |  Page ${p} of ${pageCount}`,
+            W / 2, 293, { align: 'center' }
+        );
+    }
+
+    // ── Save ─────────────────────────────────────────────────
+    const safeName  = selectedCity.replace(/\s+/g, '_');
+    const safeDate  = selectedDate || new Date().toISOString().slice(0, 10);
+    doc.save(`EcoForecast_Analysis_${safeName}_${safeDate}.pdf`);
+}

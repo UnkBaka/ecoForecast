@@ -61,7 +61,12 @@
 
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h4 class="m-0">Live Report: {{ city }}</h4>
-                    <span class="badge bg-light text-dark">{{ aqi_data.time }}</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-dark">{{ aqi_data.time }}</span>
+                        <button onclick="exportAqiPdf()" class="btn btn-sm btn-light">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+                        </button>
+                    </div>
                 </div>
 
                 <!-- DATA SOURCE BAR -->
@@ -405,6 +410,8 @@
         }
     });
 </script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 {% endif %}
 
 {% endblock %}
