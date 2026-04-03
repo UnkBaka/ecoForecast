@@ -233,8 +233,20 @@
         }
         .close-x { top: 15px !important; right: 20px !important; }
 
-        #chatToggleBtn { bottom: 80px !important; right: 15px !important; width: 50px !important; height: 50px !important; font-size: 1.2rem !important; }
-        #aiChatBox { bottom: 140px !important; right: 10px !important; width: calc(100vw - 20px) !important; height: 60vh !important; }
+        #chatToggleBtn {
+            bottom: 100px !important; /* Bumps the button up a bit more */
+            right: 15px !important;
+            width: 50px !important;
+            height: 50px !important;
+            font-size: 1.2rem !important;
+        }
+
+        #aiChatBox {
+            bottom: 160px !important; /* Bumps the chat box up so it stays above the button */
+            right: 10px !important;
+            width: calc(100vw - 20px) !important;
+            height: 60vh !important;
+        }
 
         #radarPlayer { bottom: 60px !important; left: 5% !important; right: 5% !important; width: auto !important; transform: none !important; padding: 5px 15px !important; z-index: 1000 !important; box-sizing: border-box; }
         .map-legend { bottom: 100px !important; left: 15px !important; z-index: 999 !important; font-size: 0.8rem !important; padding: 8px !important; }
