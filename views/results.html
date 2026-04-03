@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
 <div class="container py-5">
     <div class="text-center mb-5">
         <h1 class="display-5 fw-bold text-primary">AI & Data Analysis</h1>
@@ -44,10 +47,13 @@
 
                 <div class="d-flex align-items-center gap-3 flex-wrap">
                     <div class="d-flex align-items-center gap-2">
-                        <label class="text-muted small fw-bold mb-0">Date:</label>
-                        <select id="smartDateSelector" class="form-select form-select-sm w-auto" onchange="filterBySmartDate()">
-                            <option value="all">All Available Dates</option>
-                        </select>
+                        <label class="text-muted small fw-bold mb-0"><i class="bi bi-calendar3"></i> Filter:</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="smartCalendar" class="form-control text-center" placeholder="Select dates..." style="width: 210px; background-color: #fff; cursor: pointer;" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearCalendar()" title="Clear Dates">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <button class="btn btn-sm btn-success shadow-sm" onclick="openExportModal()">
@@ -83,7 +89,7 @@
 
                             <div id="aqiWarning" class="alert alert-warning py-2 mb-0" style="display: none; font-size: 0.85rem;">
                                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                No live AQI data found in memory. Visit the <b>Live Dashboard</b> first if you want AQI metrics included.
+                                No live AQI data found in memory for this city. Visit the <b>Live Dashboard</b> first if you want AQI metrics included.
                             </div>
                         </div>
                         <div class="modal-footer bg-light">
@@ -160,6 +166,7 @@
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
@@ -169,34 +176,124 @@
     let tempChart = null;
     let rawWeatherData = [];
     let currentCity = "";
+    let fpInstance = null;
 
     $(document).ready(function() {
         rawWeatherData = {{ weather | tojson | safe }};
 
-        // Populate the dropdown with unique dates from the table
-        populateSmartDateDropdown();
+        initSmartCalendar();
 
-        // Initialize City Selector
         const citySelector = document.getElementById('citySelector');
         if (citySelector && citySelector.options.length > 0) {
             currentCity = citySelector.options[0].value;
-
             citySelector.addEventListener('change', (e) => {
                 currentCity = e.target.value;
-                filterBySmartDate(); // Re-render chart for new city with current date filter
+                triggerCalendarFilter(); // Re-apply current calendar dates to new city
             });
         }
     });
 
     // ==========================================
+    // SMART CALENDAR LOGIC
+    // ==========================================
+    function initSmartCalendar() {
+        const validDates = new Set();
+        document.querySelectorAll('.time-row').forEach(tr => {
+            const timeText = tr.querySelector('td:first-child')?.textContent.trim();
+            if (timeText) {
+                validDates.add(timeText.split(' ')[0]);
+            }
+        });
+
+        const enabledDates = Array.from(validDates).sort();
+
+        fpInstance = flatpickr("#smartCalendar", {
+            mode: "range",
+            dateFormat: "Y-m-d",
+            enable: enabledDates, // GREYS OUT ANY DATE WITHOUT DATA
+            onChange: function(selectedDates, dateStr, instance) {
+                if (selectedDates.length > 0) {
+                    triggerCalendarFilter(selectedDates);
+                } else {
+                    clearCalendar();
+                }
+            }
+        });
+
+        // Auto-select the latest date by default
+        if (enabledDates.length > 0) {
+            const latest = enabledDates[enabledDates.length - 1];
+            fpInstance.setDate([latest, latest]);
+            triggerCalendarFilter(fpInstance.selectedDates);
+        }
+    }
+
+    function clearCalendar() {
+        if (fpInstance) fpInstance.clear();
+        triggerCalendarFilter([]);
+    }
+
+    function triggerCalendarFilter(dates = fpInstance ? fpInstance.selectedDates : []) {
+        let startTime = 0;
+        let endTime = Infinity;
+        let labelStr = 'All Available Dates';
+
+        if (dates.length === 1) {
+            startTime = new Date(dates[0]).setHours(0,0,0,0);
+            endTime = new Date(dates[0]).setHours(23,59,59,999);
+            labelStr = fpInstance.input.value;
+        } else if (dates.length === 2) {
+            startTime = new Date(dates[0]).setHours(0,0,0,0);
+            endTime = new Date(dates[1]).setHours(23,59,59,999);
+            labelStr = fpInstance.input.value;
+        }
+
+        // Filter Table Rows
+        document.querySelectorAll('.city-group').forEach(group => {
+            let hasVisibleRows = false;
+
+            group.querySelectorAll('.time-row').forEach(tr => {
+                const timeText = tr.querySelector('td:first-child')?.textContent.trim() || '';
+                const rowDate = new Date(timeText.replace(/-/g, '/'));
+                const rowTime = rowDate.getTime();
+
+                if (rowTime >= startTime && rowTime <= endTime) {
+                    tr.style.display = '';
+                    hasVisibleRows = true;
+                } else {
+                    tr.style.display = 'none';
+                }
+            });
+            group.style.display = hasVisibleRows ? '' : 'none';
+        });
+
+        // Update Chart
+        if (currentCity) {
+            loadChart(currentCity, startTime === 0 ? null : labelStr);
+        }
+    }
+
+    // ==========================================
     // CHART LOGIC
     // ==========================================
-    function loadChart(selectedCity, dateStr) {
+    function loadChart(selectedCity, rangeLabel) {
         let cityData = rawWeatherData.filter(row => row[0] === selectedCity);
 
-        if (dateStr && dateStr !== 'all') {
-            cityData = cityData.filter(row => row[3].substring(0, 10) === dateStr);
-            $('#chart-subtitle').html(`<i class="bi bi-calendar-check"></i> Showing data for <strong>${dateStr}</strong>`);
+        if (rangeLabel) {
+            // Re-filter the raw data based on what's visible in the table
+            const visibleRows = [];
+            document.querySelectorAll('.city-group').forEach(group => {
+                const groupCity = group.querySelector('.accordion-button')?.textContent.trim().replace(/\s+/g, ' ');
+                if (!groupCity.includes(selectedCity)) return;
+
+                group.querySelectorAll('.time-row').forEach(tr => {
+                    if (tr.style.display !== 'none') {
+                        visibleRows.push(tr.querySelector('td:first-child').textContent.trim());
+                    }
+                });
+            });
+            cityData = cityData.filter(row => visibleRows.includes(row[3]));
+            $('#chart-subtitle').html(`<i class="bi bi-calendar-check"></i> Showing: <strong>${rangeLabel}</strong>`);
         } else {
             $('#chart-subtitle').html(`<i class="bi bi-clock-history"></i> Showing all available records`);
         }
@@ -212,109 +309,27 @@
 
         const ctx = document.getElementById('tempChart').getContext('2d');
         if (tempChart) tempChart.destroy();
-
-        if (cityData.length === 0) {
-            $('#chart-subtitle').append(' <span class="text-danger">(No data found)</span>');
-        }
+        if (cityData.length === 0) $('#chart-subtitle').append(' <span class="text-danger">(No data found)</span>');
 
         tempChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [
-                    {
-                        label: 'Actual Temp (°C)',
-                        data: actualTemps,
-                        borderColor: '#0d6efd',
-                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                        borderWidth: 2, tension: 0.4, fill: true, pointRadius: 3
-                    },
-                    {
-                        label: 'AI Predicted Temp (°C)',
-                        data: aiTemps,
-                        borderColor: '#dc3545',
-                        backgroundColor: 'transparent',
-                        borderWidth: 2, borderDash: [5, 5], tension: 0.4, fill: false, pointRadius: 3
-                    }
+                    { label: 'Actual Temp (°C)', data: actualTemps, borderColor: '#0d6efd', backgroundColor: 'rgba(13, 110, 253, 0.1)', borderWidth: 2, tension: 0.4, fill: true, pointRadius: 3 },
+                    { label: 'AI Predicted Temp (°C)', data: aiTemps, borderColor: '#dc3545', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], tension: 0.4, fill: false, pointRadius: 3 }
                 ]
             },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: {
-                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#6c757d' }, title: { display: true, text: 'Temperature (°C)' } },
-                    x: { ticks: { color: '#6c757d', maxTicksLimit: 8 } }
-                },
-                plugins: { legend: { display: true, position: 'top' }, tooltip: { mode: 'index', intersect: false } }
-            }
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: 'rgba(0,0,0,0.05)' } } }, plugins: { legend: { position: 'top' } } }
         });
     }
 
     // ==========================================
-    // SMART DATE FILTER LOGIC
-    // ==========================================
-    function populateSmartDateDropdown() {
-        const dates = new Set();
-        document.querySelectorAll('.time-row').forEach(tr => {
-            const timeText = tr.querySelector('td:first-child')?.textContent.trim();
-            if (timeText) {
-                const datePart = timeText.split(' ')[0]; // Gets "YYYY-MM-DD"
-                dates.add(datePart);
-            }
-        });
-
-        const select = document.getElementById('smartDateSelector');
-
-        // Sort newest first
-        Array.from(dates).sort().reverse().forEach(date => {
-            const opt = document.createElement('option');
-            opt.value = date;
-            opt.textContent = date;
-            select.appendChild(opt);
-        });
-
-        // Auto-select the newest date to keep the UI clean
-        if (select.options.length > 1) {
-            select.selectedIndex = 1;
-        }
-        filterBySmartDate();
-    }
-
-    function filterBySmartDate() {
-        const selectedDate = document.getElementById('smartDateSelector').value;
-
-        // 1. Filter the Table
-        document.querySelectorAll('.city-group').forEach(group => {
-            let hasVisibleRows = false;
-
-            group.querySelectorAll('.time-row').forEach(tr => {
-                const timeText = tr.querySelector('td:first-child')?.textContent.trim() || '';
-                const rowDate = timeText.split(' ')[0];
-
-                if (selectedDate === 'all' || rowDate === selectedDate) {
-                    tr.style.display = '';
-                    hasVisibleRows = true;
-                } else {
-                    tr.style.display = 'none';
-                }
-            });
-
-            // Hide the accordion group entirely if no dates match
-            group.style.display = hasVisibleRows ? '' : 'none';
-        });
-
-        // 2. Update the Chart
-        if (currentCity) {
-            loadChart(currentCity, selectedDate);
-        }
-    }
-
-    // ==========================================
-    // MODAL & EXPORT LOGIC
+    // MODAL LOGIC & PDF EXPORT
     // ==========================================
     function openExportModal() {
         const city = document.getElementById('citySelector')?.value || 'Unknown City';
-        const dateSelect = document.getElementById('smartDateSelector');
-        const dateScope = dateSelect.options[dateSelect.selectedIndex].text;
+        const dateScope = document.getElementById('smartCalendar').value || 'All Available Dates';
 
         const cachedAqiStr = localStorage.getItem('shared_aqi_data');
         const aqiData = cachedAqiStr ? JSON.parse(cachedAqiStr) : null;
@@ -325,7 +340,11 @@
         const aqiBadge = document.getElementById('modalAqiBadge');
         const aqiWarn = document.getElementById('aqiWarning');
 
-        if (aqiData && aqiData.city === city) {
+        // FOOLPROOF CITY MATCHER: lowercases everything and strips out all spaces
+        const cleanAqiCity = aqiData ? aqiData.city.toLowerCase().replace(/\s/g, '') : '';
+        const cleanUiCity = city.toLowerCase().replace(/\s/g, '');
+
+        if (aqiData && cleanAqiCity === cleanUiCity) {
             aqiBadge.textContent = "Ready (" + aqiData.timestamp.split(',')[0] + ")";
             aqiBadge.className = "badge bg-success rounded-pill";
             aqiWarn.style.display = 'none';
@@ -335,17 +354,11 @@
             aqiWarn.style.display = 'block';
         }
 
-        const exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
-        exportModal.show();
+        new bootstrap.Modal(document.getElementById('exportModal')).show();
     }
 
     function executePdfExport() {
-        // Hide Modal
-        const modalEl = document.getElementById('exportModal');
-        const modalInstance = bootstrap.Modal.getInstance(modalEl);
-        modalInstance.hide();
-
-        // Run PDF Generation
+        bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
         exportCombinedPdf();
     }
 
@@ -381,24 +394,27 @@
             return 'Hazardous';
         }
 
-        // ── 1. Pull Combined Data (AQI from memory, UI from Results) ────────
+        // ── 1. Pull Combined Data ────────
         const cachedAqiStr = localStorage.getItem('shared_aqi_data');
         const aqiData = cachedAqiStr ? JSON.parse(cachedAqiStr) : null;
 
         const citySelector = document.getElementById('citySelector');
         const analysisCity = citySelector ? citySelector.value : 'Unknown';
 
-        const city       = aqiData?.city || analysisCity;
-        const timestamp  = aqiData?.timestamp || new Date().toLocaleString();
-        const temp       = aqiData?.temp || '--';
-        const wind       = aqiData?.wind || '--';
-        const aqiVal     = aqiData?.aqiVal || 0;
-        const doeStation = aqiData?.doeStation || '';
-        const pollutants = aqiData?.pollutants || [];
+        // Mismatch logic again just to be safe before printing
+        const cleanAqiCity = aqiData ? aqiData.city.toLowerCase().replace(/\s/g, '') : '';
+        const cleanUiCity = analysisCity.toLowerCase().replace(/\s/g, '');
+        const hasValidAqi = (aqiData && cleanAqiCity === cleanUiCity);
 
-        // Get nice label from smart selector
-        const dateSelect   = document.getElementById('smartDateSelector');
-        const periodLabel  = dateSelect.options[dateSelect.selectedIndex].text;
+        const city       = hasValidAqi ? aqiData.city : analysisCity;
+        const timestamp  = hasValidAqi ? aqiData.timestamp : new Date().toLocaleString();
+        const temp       = hasValidAqi ? aqiData.temp : '--';
+        const wind       = hasValidAqi ? aqiData.wind : '--';
+        const aqiVal     = hasValidAqi ? aqiData.aqiVal : 0;
+        const doeStation = hasValidAqi ? aqiData.doeStation : '';
+        const pollutants = hasValidAqi ? aqiData.pollutants : [];
+
+        const periodLabel = document.getElementById('smartCalendar').value || 'All Available Dates';
 
         // Scrape currently visible filtered rows in Results page
         const rows = [];
@@ -408,7 +424,7 @@
             if (!groupCity.includes(analysisCity)) return;
 
             group.querySelectorAll('.time-row').forEach(tr => {
-                if (tr.style.display === 'none') return; // Respect the dropdown filter!
+                if (tr.style.display === 'none') return;
                 const cells = tr.querySelectorAll('td');
                 if (cells.length < 5) return;
                 rows.push({
@@ -436,7 +452,7 @@
         doc.text('LIVE AQI REPORT', margin + 20, y + 4.2, { align: 'center' });
         y += 9;
 
-        if (!aqiData || aqiData.city !== analysisCity) {
+        if (!hasValidAqi) {
             doc.setTextColor(...red); doc.setFontSize(8);
             doc.text("No matching live AQI data found in memory. Please visit the Live AQI dashboard first.", margin, y+5);
             y += 15;
@@ -501,7 +517,7 @@
         }
 
         // ── SECTION 2: AI & DATA ANALYSIS ────────────────────────
-        if (y > 230) { doc.addPage(); y = 15; } // Check for page break
+        if (y > 230) { doc.addPage(); y = 15; }
 
         doc.setFillColor(...blue); doc.roundedRect(margin, y, 52, 6, 2, 2, 'F');
         doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
