@@ -73,14 +73,14 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="mt-auto py-3 bg-dark text-white text-center">
+    <footer class="mt-auto py-3 bg-dark text-white text-center border-top border-secondary">
         <div class="container d-flex justify-content-between align-items-center">
-        <span class="text-muted small">© 2026 EcoForecast | Malaysian Weather Intelligence</span>
+            <span class="text-white-50 small">© 2026 EcoForecast | Malaysian Weather Intelligence</span>
 
-        <a href="/login" class="text-muted text-decoration-none small" title="Admin Portal">
-            <i class="bi bi-shield-lock"></i> Admin
-        </a>
-    </div>
+            <a href="/login" class="text-white-50 text-decoration-none small" title="Admin Portal" onmouseover="this.className='text-white text-decoration-none small'" onmouseout="this.className='text-white-50 text-decoration-none small'" style="transition: 0.3s;">
+                <i class="bi bi-shield-lock"></i> Admin
+            </a>
+        </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
