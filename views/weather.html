@@ -411,69 +411,65 @@ map.on('baselayerchange', function(event) {
         if (legend) legend.addTo(map);
 
         fetch('/get_heatmap_data')
-    .then(res => res.json())
-    .then(data => {
-        ecoHeatmapLayer.clearLayers();
+        .then(res => res.json())
+        .then(data => {
+            ecoHeatmapLayer.clearLayers();
 
-        data.forEach(point => {
-            let lat      = point[0];
-            let lng      = point[1];
-            let temp     = point[2];
-            let humidity = point[3];
-            let name     = point[4] || 'Unknown';
-            let advisory = point[5] || 'No advisory';
+            // 1. Array to hold coordinates for the REAL Heatmap
+            let heatPoints = [];
 
-            // Circle color based on temperature
-            let color = temp >= 37 ? '#e74c3c' :
-                        temp >= 34 ? '#ff6600' :
-                        temp >= 31 ? '#f1c40f' :
-                        temp >= 28 ? '#2ecc71' : '#00ffff';
+            data.forEach(point => {
+                let lat      = point[0];
+                let lng      = point[1];
+                let temp     = point[2];
+                let humidity = point[3];
+                let name     = point[4] || 'Unknown';
+                let advisory = point[5] || 'No advisory';
 
-            // Outer ring
-            L.circleMarker([lat, lng], {
-                radius: 22,
-                color: color,
-                fillColor: color,
-                fillOpacity: 0.12,
-                weight: 2,
-                opacity: 0.5
-            }).addTo(ecoHeatmapLayer);
+                // Add data to our heatmap (uses temperature for intensity)
+                heatPoints.push([lat, lng, temp]);
 
-            // Inner dot
-            let dotMarker = L.circleMarker([lat, lng], {
-                radius: 10,
-                color: color,
-                fillColor: color,
-                fillOpacity: 0.9,
-                weight: 2
-            }).addTo(ecoHeatmapLayer);
+                let color = temp >= 37 ? '#e74c3c' :
+                            temp >= 34 ? '#ff6600' :
+                            temp >= 31 ? '#f1c40f' :
+                            temp >= 28 ? '#2ecc71' : '#00ffff';
 
-            // Hover tooltip — no click needed
-            dotMarker.bindTooltip(`
-                <div style="font-family:'Inter',sans-serif; min-width:160px; padding:4px;">
-                    <div style="font-size:1rem; font-weight:800; color:${color}; margin-bottom:6px;">
-                        📍 ${name}
-                    </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                        <span style="opacity:0.7;">🌡️ Temp</span>
-                        <span style="font-weight:bold;">${temp}°C</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                        <span style="opacity:0.7;">💧 Humidity</span>
-                        <span style="font-weight:bold;">${humidity}%</span>
-                    </div>
-                    <div style="background:${color}22; border-left: 3px solid ${color}; padding: 6px 8px; border-radius:4px; font-size:0.8rem; font-weight:600;">
-                        ${advisory}
-                    </div>
-                </div>`, {
-                permanent: false,
-                direction: 'top',
-                offset: [0, -14],
-                className: 'eco-tooltip'
+                // 2. We removed the large "Outer Ring" (the fake cloud)!
+                // Now we just drop a clean, crisp dot for the tooltip hover.
+                let dotMarker = L.circleMarker([lat, lng], {
+                    radius: 6, color: 'white', fillColor: color, fillOpacity: 1, weight: 1
+                }).addTo(ecoHeatmapLayer);
+
+                // Hover tooltip
+                dotMarker.bindTooltip(`
+                    <div style="font-family:'Inter',sans-serif; min-width:160px; padding:4px;">
+                        <div style="font-size:1rem; font-weight:800; color:${color}; margin-bottom:6px;">📍 ${name}</div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span style="opacity:0.7;">🌡️ Temp</span><span style="font-weight:bold;">${temp}°C</span></div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="opacity:0.7;">💧 Humidity</span><span style="font-weight:bold;">${humidity}%</span></div>
+                        <div style="background:${color}22; border-left: 3px solid ${color}; padding: 6px 8px; border-radius:4px; font-size:0.8rem; font-weight:600;">${advisory}</div>
+                    </div>`, { permanent: false, direction: 'top', offset: [0, -10], className: 'eco-tooltip' }
+                );
             });
-        });
-    })
-    .catch(err => console.error("Heatmap fetch failed:", err));
+
+            // 3. Generate the TRUE Thermal Heatmap
+            let realHeatmap = L.heatLayer(heatPoints, {
+                radius: 35,
+                blur: 20,
+                maxZoom: 10,
+                max: 40, // Max temperature scale
+                gradient: {
+                    0.4: '#0000ff', // Cool (Blue)
+                    0.6: '#00ff00', // Warm (Green)
+                    0.8: '#ffff00', // Hot (Yellow)
+                    0.9: '#ffa500', // Very Hot (Orange)
+                    1.0: '#ff0000'  // Extreme (Red)
+                }
+            });
+
+            // Add the heatmap behind the hover dots
+            realHeatmap.addTo(ecoHeatmapLayer);
+        })
+        .catch(err => console.error("Heatmap fetch failed:", err));
 
     } else {
         if (ecoHeatmapLayer) ecoHeatmapLayer.clearLayers();
