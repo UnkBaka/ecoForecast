@@ -225,27 +225,37 @@ def create_app():
 
     @app.route('/admin/delete_city', methods=['POST'])
     def delete_city():
-        # 1. SECURITY CHECK: Ensure they are actually logged in!
         if not session.get('admin_logged_in'):
             return jsonify({"error": "Unauthorized. Access Denied."}), 403
 
-        # 2. Get the city name from the JSON body sent by the new admin.html
-        data = request.get_json()
-        name = data.get('name')
-
+        name = request.get_json().get('name')
         if not name:
             return jsonify({"error": "City name is required"}), 400
 
-        # 3. Delete from Database
         try:
             conn = get_connection()
             cur = conn.cursor()
-            cur.execute("DELETE FROM locations WHERE name = ?", (name,))
+
+            # Find the ID of the city first
+            cur.execute("SELECT id FROM locations WHERE name = ?", (name,))
+            row = cur.fetchone()
+
+            if row:
+                loc_id = row[0]
+                # Deep Clean: Delete all weather & prediction data linked to this city so the DB doesn't bloat!
+                cur.execute("DELETE FROM weather_data WHERE location_id = ?", (loc_id,))
+                cur.execute("DELETE FROM predictions WHERE location_id = ?", (loc_id,))
+                # Delete the actual city
+                cur.execute("DELETE FROM locations WHERE id = ?", (loc_id,))
+
             conn.commit()
             conn.close()
 
-            return jsonify({"message": f"Station '{name}' removed permanently."})
+            return jsonify({"message": f"Station '{name}' and all its history removed."})
         except Exception as e:
+            if "locked" in str(e).lower():
+                return jsonify({
+                                   "error": "Database is currently syncing data for another city. Please wait 10 seconds and try again."}), 500
             return jsonify({"error": str(e)}), 500
 
     @app.route('/analysis')

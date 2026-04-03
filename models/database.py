@@ -7,7 +7,9 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "ecoForecast.db")
 
 def get_connection():
     """Standard connection for scripts (seeding, migration, etc.)."""
-    conn = sqlite3.connect(DB_PATH)
+    # Added timeout=20 to prevent 'database is locked' errors
+    # while the AI background thread is fetching history!
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
