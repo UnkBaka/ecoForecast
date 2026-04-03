@@ -401,7 +401,7 @@
         const citySelector = document.getElementById('citySelector');
         const analysisCity = citySelector ? citySelector.value : 'Unknown';
 
-        // Mismatch logic again just to be safe before printing
+        // Mismatch logic
         const cleanAqiCity = aqiData ? aqiData.city.toLowerCase().replace(/\s/g, '') : '';
         const cleanUiCity = analysisCity.toLowerCase().replace(/\s/g, '');
         const hasValidAqi = (aqiData && cleanAqiCity === cleanUiCity);
@@ -466,7 +466,7 @@
             if (doeStation) doc.text(`DOE Station: ${doeStation}`, W - margin - 4, y + 10.5, { align: 'right' });
             y += 17;
 
-            // 3 metric cards (Temp, Wind, AQI)
+            // 3 metric cards
             const cW = (W - margin * 2 - 8) / 3;
 
             doc.setFillColor(...light); doc.roundedRect(margin, y, cW, 18, 3, 3, 'F');
@@ -506,13 +506,12 @@
 
                     px = margin + 2;
 
-                    // 1. Clean the name: Remove emojis, "sunny", "clear", etc.
+                    // FIXED: Emjois and strings like "sunny Ozone" removed
                     let cName = p.name.replace(/[^\x20-\x7E]/g, '').replace(/sunny|clear|partly/gi, '').trim();
                     doc.text(cName, px, y + 4); px += pCols[0];
-
                     doc.text(String(p.value), px, y + 4); px += pCols[1];
 
-                    // 2. Fix the unit: Force jsPDF to render the 'µ' and '³' symbols properly
+                    // FIXED: Real symbols for micro and cubed
                     let cUnit = p.unit.replace('µ', '\xB5').replace('u', '\xB5').replace('³', '\xB3');
                     doc.text(cUnit, px, y + 4); px += pCols[2];
 
@@ -548,10 +547,18 @@
         rHdrs.forEach((h, i) => { doc.text(h, rx, y + 4.2); rx += rCols[i]; });
         y += 6;
 
-        const maxRows = 30; // Limit to prevent massive PDFs
+        const maxRows = 60; // Increased limit since we support multiple pages now
         rows.slice(0, maxRows).forEach((row, idx) => {
-            if (y > 275) {
+            if (y > 270) {
+                // ADD PAGE BREAK LOGIC
                 doc.addPage(); y = 15;
+
+                // Print a nice "Continued" header for context on the new page
+                doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(...gray);
+                doc.text(`Prediction Logs Continued: ${analysisCity} (${periodLabel})`, margin, y);
+                y += 6;
+
+                // Reprint the blue table headers
                 doc.setFillColor(...blue); doc.rect(margin, y, W - margin * 2, 6, 'F');
                 doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
                 rx = margin + 2; rHdrs.forEach((h, i) => { doc.text(h, rx, y + 4.2); rx += rCols[i]; });
@@ -576,6 +583,25 @@
         } else if (rows.length === 0) {
             doc.setFont('helvetica', 'italic'); doc.setTextColor(...red);
             doc.text(`No historical data found for the selected dates.`, margin, y + 5);
+        }
+
+        // ── ALL PAGES FOOTER LOGIC ───────────────────────────────
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= pageCount; p++) {
+            doc.setPage(p);
+
+            // Draw Blue Footer Bar
+            doc.setFillColor(...blue);
+            doc.rect(0, 287, W, 10, 'F');
+
+            // Draw Page Numbers
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(255, 255, 255);
+            doc.text(
+                `EcoForecast Malaysia  |  CAMS / Open-Meteo  |  Page ${p} of ${pageCount}`,
+                W / 2, 293.5, { align: 'center' }
+            );
         }
 
         // Save PDF
