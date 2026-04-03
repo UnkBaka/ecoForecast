@@ -148,7 +148,7 @@ def create_app():
             lat = float(data.get('lat'))
             lng = float(data.get('lng'))
 
-            # 1. Validation (Check if Open-Meteo has data for this map click)
+            # 1. Validation
             test_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&current_weather=true"
             if requests.get(test_url).status_code != 200:
                 return jsonify(
@@ -163,13 +163,14 @@ def create_app():
 
             print(f"✅ Admin Added City: {name} ({lat}, {lng})")
 
-            # 3. KICKSTART THE AI (Run in the background so the admin UI doesn't freeze!)
+            # 3. KICKSTART THE AI (Synchronously!)
+            # Instead of threading, we just run it directly.
+            # It takes about 2 seconds, which guarantees the data is saved safely!
             from prediction_service import initialize_new_city
-            # We use threading here so the Admin map responds instantly while the AI works in the background
-            threading.Thread(target=initialize_new_city, args=(name, lat, lng)).start()
+            initialize_new_city(name, lat, lng)
 
             return jsonify({"status": "success",
-                            "message": f"{name} linked to satellites! Fetching 8 days of history & running AI predictions now..."})
+                            "message": f"{name} successfully linked! AI has populated historical data and generated the forecast."})
 
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
