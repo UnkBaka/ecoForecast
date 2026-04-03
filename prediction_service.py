@@ -91,6 +91,64 @@ def get_forecast_by_name(city_name, target_time=None):
     return final_temp, wmo_translation.get(ai_class, 2), rain_chance
 
 
+def initialize_new_city(name, lat, lon):
+    """
+    Instantly downloads historical data for a newly added city
+    and generates its first 24h AI predictions.
+    """
+    global model
+    if model is None:
+        load_ai_model()  # Make sure the AI is awake!
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT id FROM locations WHERE name = ?", (name,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return
+    loc_id = row[0]
+
+    print(f"\n[*] 🚀 Kickstarting data for new city: {name}...")
+
+    # 1. Fetch past 8 days of history instantly
+    w_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relative_humidity_2m,surface_pressure,windspeed_10m,weathercode&timezone=auto&past_days=8"
+    try:
+        res = requests.get(w_url).json().get('hourly', {})
+        if res:
+            for i, api_time in enumerate(res.get('time', [])):
+                db_time = api_time.replace('T', ' ') + ":00"
+                # Use INSERT OR IGNORE so we don't duplicate data
+                cur.execute("""
+                    INSERT OR IGNORE INTO weather_data (location_id, timestamp, temperature, humidity, pressure, wind_speed, weather_code, aqi)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                """, (loc_id, db_time, res['temperature_2m'][i], res['relative_humidity_2m'][i],
+                      res['surface_pressure'][i], res['windspeed_10m'][i], res['weathercode'][i]))
+            conn.commit()
+            print(f"  [+] History fully synced for {name}.")
+    except Exception as e:
+        print(f"  [-] Error syncing history: {e}")
+
+    # 2. Ask the AI to predict the next 24 hours immediately
+    now = datetime.now().replace(minute=0, second=0, microsecond=0)
+    for h in range(1, 25):
+        future_time = now + timedelta(hours=h)
+        db_time = future_time.strftime('%Y-%m-%d %H:%M:%S')
+
+        pred_temp, pred_weather, rain_chance = get_forecast_by_name(name, target_time=future_time)
+
+        if pred_temp is not None:
+            cur.execute("""
+                INSERT OR IGNORE INTO predictions (location_id, label, predicted_value, predicted_weather_code, rain_chance, timestamp)
+                VALUES (?, 'forecast', ?, ?, ?, ?)
+            """, (loc_id, pred_temp, pred_weather, rain_chance, db_time))
+
+    conn.commit()
+    conn.close()
+    print(f"  [+] AI Predictions initialized! {name} is ready for the dashboard.")
+
+
 def heal_missing_data(conn):
     cur = conn.cursor()
     cur.execute("SELECT id, name, lat, lon FROM locations")

@@ -3,6 +3,7 @@ import json
 import sqlite3
 import pandas as pd
 import requests
+import threading
 from groq import Groq  # NEW IMPORT
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
 from tensorflow.keras.models import load_model
@@ -137,7 +138,7 @@ def create_app():
 
     @app.route('/admin/add_city', methods=['POST'])
     def add_new_city():
-        # SECURITY CHECK: Block unauthorized users from adding cities
+        # SECURITY CHECK
         if not session.get('admin_logged_in'):
             return jsonify({"status": "error", "message": "Unauthorized. Access Denied."}), 403
 
@@ -147,15 +148,29 @@ def create_app():
             lat = float(data.get('lat'))
             lng = float(data.get('lng'))
 
+            # 1. Validation (Check if Open-Meteo has data for this map click)
+            test_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&current_weather=true"
+            if requests.get(test_url).status_code != 200:
+                return jsonify(
+                    {"status": "error", "message": "No satellite data available for this spot. Try nearby."}), 400
+
+            # 2. Save to Database
             conn = get_connection()
             cur = conn.cursor()
-            # INSERT OR IGNORE prevents duplicates if you click the same spot twice
             cur.execute("INSERT OR IGNORE INTO locations (name, lat, lon) VALUES (?, ?, ?)", (name, lat, lng))
             conn.commit()
             conn.close()
 
-            print(f" Admin Added City: {name} ({lat}, {lng})")
-            return jsonify({"status": "success", "message": f"{name} added to database!"})
+            print(f"✅ Admin Added City: {name} ({lat}, {lng})")
+
+            # 3. KICKSTART THE AI (Run in the background so the admin UI doesn't freeze!)
+            from prediction_service import initialize_new_city
+            # We use threading here so the Admin map responds instantly while the AI works in the background
+            threading.Thread(target=initialize_new_city, args=(name, lat, lng)).start()
+
+            return jsonify({"status": "success",
+                            "message": f"{name} linked to satellites! Fetching 8 days of history & running AI predictions now..."})
+
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
 
