@@ -505,9 +505,17 @@
                     doc.setFont('helvetica', 'normal'); doc.setTextColor(...dark);
 
                     px = margin + 2;
-                    doc.text(p.name.replace(/[^\x00-\x7F]/g, '').trim(), px, y + 4); px += pCols[0];
+
+                    // 1. Clean the name: Remove emojis, "sunny", "clear", etc.
+                    let cName = p.name.replace(/[^\x20-\x7E]/g, '').replace(/sunny|clear|partly/gi, '').trim();
+                    doc.text(cName, px, y + 4); px += pCols[0];
+
                     doc.text(String(p.value), px, y + 4); px += pCols[1];
-                    doc.text(p.unit.replace('µ', 'u'), px, y + 4); px += pCols[2];
+
+                    // 2. Fix the unit: Force jsPDF to render the 'µ' and '³' symbols properly
+                    let cUnit = p.unit.replace('µ', '\xB5').replace('u', '\xB5').replace('³', '\xB3');
+                    doc.text(cUnit, px, y + 4); px += pCols[2];
+
                     doc.text(p.level.slice(0, 15), px, y + 4); px += pCols[3];
                     doc.text(`${Math.round(p.pct)}% of max limit`, px, y + 4);
                     y += 6;

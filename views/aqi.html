@@ -436,7 +436,7 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Make absolutely sure the city name is clean to prevent mismatches
+        // Make absolutely sure the city name is clean
         let rawCity = document.querySelector('.card-header h4')?.textContent || '';
         let cleanCity = rawCity.replace('Live Report:', '').trim();
 
@@ -451,6 +451,21 @@ window.addEventListener('DOMContentLoaded', () => {
         };
 
         localStorage.setItem('shared_aqi_data', JSON.stringify(aqiDataToShare));
+
+        // ==========================================
+        // NEW: SHOW "YOU HAVE SELECTED [CITY]" BADGE
+        // ==========================================
+        const msg = document.createElement('div');
+        msg.className = 'bg-success text-white px-3 py-2 rounded-end shadow fw-bold';
+        msg.style.cssText = 'position: fixed; top: 90px; left: 0; z-index: 1050; font-size: 0.95rem; border: 1px solid #146c43; border-left: none; animation: slideIn 0.5s ease-out;';
+        msg.innerHTML = `<i class="bi bi-pin-map-fill me-2"></i> You have selected: <span class="text-warning">${cleanCity}</span>`;
+        document.body.appendChild(msg);
+
+        // Add smooth slide-in animation
+        const style = document.createElement('style');
+        style.innerHTML = `@keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }`;
+        document.head.appendChild(style);
+
     }, 1000);
 });
 </script>
