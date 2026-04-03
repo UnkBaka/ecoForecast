@@ -190,81 +190,128 @@
             margin-left: 10px !important;
         }
 
+        /* Smooth animation for the bottom sheet */
+            @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+            }
+
+
         /* --- MOBILE RESPONSIVENESS FIX --- */
         @media (max-width: 768px) {
-            #chatToggleBtn {
-                bottom: 110px; /* Move the button higher up */
-                right: 20px;
-                width: 50px;
-                height: 50px;
-                font-size: 1.2rem;
-            }
-            #aiChatBox {
-                bottom: 170px; /* Move the chat box higher too */
-                right: 10px;
-                width: calc(100vw - 20px); /* Make it fit perfectly on small screens */
-                height: 60vh; /* Takes up 60% of the screen height */
-            }
-            #radarPlayer {
-                bottom: 90px !important; /* Higher than footer (approx 50px) */
-                width: 90% !important;
-                padding: 5px 15px !important;
-            }
 
-            .leaflet-control-layers {
-                background: rgba(10, 25, 47, 0.95) !important;
-                backdrop-filter: blur(10px);
-                border: 1px solid #3498db !important;
-                color: white !important;
-                border-radius: 15px !important;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
-                padding: 10px !important;
-            }
-            .leaflet-control-layers-overlays label {
-                margin-bottom: 5px;
-                cursor: pointer;
-            }
-            .leaflet-bottom.leaflet-right {
-                bottom: 160px !important; /* Lifted up */
-            }
-            .leaflet-top.leaflet-right {
-                top: 220px !important; /* Pushed further down */
-            }
-            .leaflet-control-layers-base label {
-                margin: 8px 0;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                cursor: pointer;
-            }
+    /* 1. Make the Top Nav Bar fit small phone screens */
+    .hub-container {
+        width: 95vw !important;
+        top: 10px !important;
+    }
+    .glass-nav {
+        padding: 8px 15px !important;
+        gap: 12px !important;
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .nav-link { font-size: 0.85rem !important; }
 
-            .eco-tooltip {
-                background: rgba(10, 25, 47, 0.95) !important;
-                border: 1px solid rgba(52, 152, 219, 0.5) !important;
-                border-radius: 10px !important;
-                color: white !important;
-                padding: 8px 12px !important;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
-                font-family: 'Inter', sans-serif !important;
-            }
-            .eco-tooltip::before {
-                border-top-color: rgba(52, 152, 219, 0.5) !important;
-            }
+    /* 2. Transform the Pop-Up Modal into a Mobile "Bottom Sheet" */
+    .modal-overlay {
+        align-items: flex-end !important; /* Pushes the box to the bottom */
+    }
+    .modal-box {
+        width: 100% !important;
+        height: 80vh !important; /* Takes up bottom 80% of the screen */
+        min-height: auto !important;
+        border-radius: 30px 30px 0 0 !important; /* Rounds only the top corners */
+        padding: 25px 15px !important;
+        border-bottom: none !important;
+        border-left: none !important;
+        border-right: none !important;
+        overflow-y: auto !important; /* Allows scrolling if content is long */
+        animation: slideUp 0.3s ease-out; /* Smooth sliding animation */
+    }
 
-            .btn-time {
-                background: rgba(255,255,255,0.1);
-                border: 1px solid rgba(255,255,255,0.15);
-                color: white !important;   /* ← force white on all devices */
-                padding: 6px 16px;
-                border-radius: 20px;
-                cursor: pointer;
-                font-size: 0.85rem;
-                font-family: 'Inter', sans-serif;
-                transition: background 0.2s;
-            }
-            .btn-time:hover { background: rgba(52,152,219,0.3); }
+    /* 3. Adjust the close 'X' button so it's not cut off */
+    .close-x {
+        top: 15px !important;
+        right: 20px !important;
+    }
 
-        }
+    /* 4. Chat Button & Box Adjustments */
+    #chatToggleBtn {
+        bottom: 110px; /* Move the button higher up */
+        right: 20px;
+        width: 50px;
+        height: 50px;
+        font-size: 1.2rem;
+    }
+    #aiChatBox {
+        bottom: 170px; /* Move the chat box higher too */
+        right: 10px;
+        width: calc(100vw - 20px); /* Make it fit perfectly on small screens */
+        height: 60vh; /* Takes up 60% of the screen height */
+    }
+
+    /* 5. Radar Player Adjustments */
+    #radarPlayer {
+        bottom: 90px !important; /* Higher than footer */
+        width: 90% !important;
+        padding: 5px 15px !important;
+    }
+
+    /* 6. Map UI Adjustments (Layers, Tooltips, Buttons) */
+    .leaflet-control-layers {
+        background: rgba(10, 25, 47, 0.95) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid #3498db !important;
+        color: white !important;
+        border-radius: 15px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+        padding: 10px !important;
+    }
+    .leaflet-control-layers-overlays label {
+        margin-bottom: 5px;
+        cursor: pointer;
+    }
+    .leaflet-bottom.leaflet-right {
+        bottom: 160px !important; /* Lifted up */
+    }
+    .leaflet-top.leaflet-right {
+        top: 220px !important; /* Pushed further down */
+    }
+    .leaflet-control-layers-base label {
+        margin: 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+    }
+
+    .eco-tooltip {
+        background: rgba(10, 25, 47, 0.95) !important;
+        border: 1px solid rgba(52, 152, 219, 0.5) !important;
+        border-radius: 10px !important;
+        color: white !important;
+        padding: 8px 12px !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    .eco-tooltip::before {
+        border-top-color: rgba(52, 152, 219, 0.5) !important;
+    }
+
+    .btn-time {
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: white !important;   /* force white on all devices */
+        padding: 6px 16px;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-family: 'Inter', sans-serif;
+        transition: background 0.2s;
+    }
+    .btn-time:hover { background: rgba(52,152,219,0.3); }
+}
     </style>
 </head>
 <body>
