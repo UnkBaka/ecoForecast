@@ -233,10 +233,10 @@
         }
         .close-x { top: 15px !important; right: 20px !important; }
 
-        #chatToggleBtn { bottom: 110px !important; right: 15px !important; width: 50px !important; height: 50px !important; font-size: 1.2rem !important; }
-        #aiChatBox { bottom: 170px !important; right: 10px !important; width: calc(100vw - 20px) !important; height: 60vh !important; }
+        #chatToggleBtn { bottom: 80px !important; right: 15px !important; width: 50px !important; height: 50px !important; font-size: 1.2rem !important; }
+        #aiChatBox { bottom: 140px !important; right: 10px !important; width: calc(100vw - 20px) !important; height: 60vh !important; }
 
-        #radarPlayer { bottom: 25px !important; left: 5% !important; width: 90% !important; padding: 10px 15px !important; z-index: 1000 !important; }
+        #radarPlayer { bottom: 60px !important; left: 5% !important; right: 5% !important; width: auto !important; transform: none !important; padding: 5px 15px !important; z-index: 1000 !important; box-sizing: border-box; }
         .map-legend { bottom: 100px !important; left: 15px !important; z-index: 999 !important; font-size: 0.8rem !important; padding: 8px !important; }
 
         .leaflet-control-layers {
@@ -258,6 +258,12 @@
             padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 0.85rem; transition: var(--transition-smooth);
         }
         .btn-time:hover { background: rgba(52,152,219,0.3); }
+
+        .site-footer {
+                bottom: 0 !important;
+                z-index: 3000 !important; /* Keep it above map controls */
+                padding-bottom: env(safe-area-inset-bottom, 12px); /* Prevents it from hiding under iPhone home bars */
+            }
     }
 </style>
 
