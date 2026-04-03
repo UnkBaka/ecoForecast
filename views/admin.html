@@ -5,97 +5,107 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-    body, html {
-        margin: 0; padding: 0; height: 100%; width: 100%;
-        overflow: hidden; font-family: 'Poppins', sans-serif;
-    }
+        body, html {
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            overflow: hidden; font-family: 'Poppins', sans-serif;
+        }
 
-    /* Fixed Sidebar - Always stays on top */
-    .sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 320px;
-        height: 100%;
-        background: #2c3e50;
-        color: white;
-        padding: 20px;
-        box-sizing: border-box;
-        z-index: 2000; /* Higher than Leaflet's 1000 */
-        box-shadow: 2px 0 10px rgba(0,0,0,0.3);
-        overflow-y: auto;
-    }
+        /* Fixed Sidebar - Always stays on top */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 320px;
+            height: 100%;
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 2000;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
 
-    /* Map Container - Pushed to the right by the sidebar width */
-    #adminMap {
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        left: 320px; /* Exact width of sidebar */
-        z-index: 1; /* Lower than sidebar */
-        background: #eee;
-    }
-</style>
+        .sidebar-content {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
 
+        /* Map Container - Pushed to the right by the sidebar width */
+        #adminMap {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 320px;
+            z-index: 1;
+            background: #eee;
+        }
+
+        /* Scrollbar styling for sidebar */
+        .sidebar-content::-webkit-scrollbar { width: 6px; }
+        .sidebar-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    </style>
 </head>
 <body>
     <div class="sidebar">
-    <h2>🛠 Admin Panel</h2>
-    <p style="font-size: 0.8rem; opacity: 0.7;">EcoForecast System Manager</p>
-    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+        <div class="sidebar-content">
+            <h2>🛠 Admin Panel</h2>
+            <p style="font-size: 0.8rem; opacity: 0.7;">EcoForecast System Manager</p>
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
 
-    <h4>Deploy New Station</h4>
-    <input type="text" id="city_name" placeholder="Station Name"
-           style="width:100%; padding:10px; border-radius:4px; border:none; margin-bottom:10px;">
+            <h4>Deploy New Station</h4>
+            <input type="text" id="city_name" placeholder="Station Name..." autocomplete="off"
+                   style="width:100%; padding:10px; border-radius:4px; border:none; margin-bottom:10px; box-sizing: border-box;">
 
-    <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-        <small>Coordinates:</small><br>
-        <span id="coords" style="font-family: monospace; color: #2ecc71;">Click on Map...</span>
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                <small>Coordinates:</small><br>
+                <span id="coords" style="font-family: monospace; color: #f1c40f; font-weight: bold;">Click map to select!</span>
+            </div>
+
+            <button onclick="saveCity()"
+                    style="background: #27ae60; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.2s;">
+                ➕ Add Location
+            </button>
+
+            <div class="city-list" style="margin-top: 30px;">
+                <small style="text-transform: uppercase; letter-spacing: 1px; opacity: 0.6;">Active Locations</small>
+                <ul id="active-list" style="list-style: none; padding: 0; margin-top: 10px;">
+                    {% for city in cities %}
+                    <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <span>📍 {{ city[0] }}</span>
+                        <button onclick="deleteCity('{{ city[0] }}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size: 1.1rem;" title="Delete Station">✕</button>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <hr style="border-color: rgba(255,255,255,0.1); margin-bottom: 15px;">
+            <a href="/logout" style="width: 100%; padding: 10px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; text-align: center; text-decoration: none; display: block; box-sizing: border-box;">
+                🚪 Logout Dashboard
+            </a>
+        </div>
     </div>
-
-    <button class="btn-add" onclick="saveCity()"
-            style="background: #27ae60; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; border-radius: 5px; font-weight: bold;">
-        Add to Database
-    </button>
-
-    <div class="city-list" style="margin-top: 30px;">
-        <small style="text-transform: uppercase; letter-spacing: 1px; opacity: 0.6;">Active Locations</small>
-        <ul id="active-list" style="list-style: none; padding: 0; margin-top: 10px;">
-            {% for city in cities %}
-            <li style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <span>📍 {{ city[0] }}</span>
-                <button onclick="deleteCity('{{ city[0] }}')" style="background:none; border:none; color:#e74c3c; cursor:pointer;">✕</button>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-</div>
 
     <div id="adminMap"></div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Initialize Map
         var map = L.map('adminMap').setView([4.2105, 101.9758], 6); // Center of Malaysia
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    function fixMap() {
-        map.invalidateSize();
-    }
-
-    // Run it immediately and after a short delay
-    fixMap();
-    setTimeout(fixMap, 500);
-
-    // Also run it if the window changes
-    window.addEventListener('resize', fixMap);
-
-        setTimeout(function() {
-        map.invalidateSize();
-    }, 200);
+        // Fix map rendering issues
+        setTimeout(() => map.invalidateSize(), 500);
+        window.addEventListener('resize', () => map.invalidateSize());
 
         let selected = null;
         let marker = null;
 
+        // Map Click Event
         map.on('click', function(e) {
             selected = e.latlng;
             if(marker) map.removeLayer(marker);
@@ -103,9 +113,12 @@
             document.getElementById('coords').innerText = selected.lat.toFixed(4) + ", " + selected.lng.toFixed(4);
         });
 
+        // Save City to Database
         function saveCity() {
             const name = document.getElementById('city_name').value;
-            if(!name || !selected) return alert("Fill name and click map!");
+            if(!name || !selected) {
+                return alert("Please enter a station name and click a location on the map!");
+            }
 
             fetch('/admin/add_city', {
                 method: 'POST',
@@ -116,19 +129,34 @@
             .then(data => {
                 alert(data.message);
                 location.reload(); // Refresh to see the new city in the list
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                alert("Failed to add city. Check console for details.");
             });
         }
 
-        window.onload = function() {
-        setTimeout(function() {
-            map.invalidateSize();
-        }, 500);
-    };
+        // Delete City from Database
+        function deleteCity(cityName) {
+            if(!confirm(`Are you sure you want to permanently delete the station "${cityName}"?`)) {
+                return;
+            }
 
-    // Also fix it if the window is resized
-    window.onresize = function() {
-        map.invalidateSize();
-    };
+            fetch('/admin/delete_city', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name: cityName })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message || "City deleted successfully");
+                location.reload();
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                alert("Failed to delete city.");
+            });
+        }
     </script>
 </body>
 </html>

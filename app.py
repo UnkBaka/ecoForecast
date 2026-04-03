@@ -4,7 +4,7 @@ import sqlite3
 import pandas as pd
 import requests
 from groq import Groq  # NEW IMPORT
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
 from tensorflow.keras.models import load_model
 from datetime import datetime, timedelta
 
@@ -69,6 +69,7 @@ if not os.path.exists(CITY_FILE):
 def create_app():
     # Note: Based on your uploaded files, your HTML is in 'templates', not 'views'
     app = Flask(__name__, template_folder="views", static_folder="static")
+    app.secret_key = 'ecoforecast_secure_admin_key_2026'  # Required for sessions to work securely
 
     # Close database connection after each request
     app.teardown_appcontext(close_db)
@@ -97,12 +98,35 @@ def create_app():
     def footprint():
         return render_template('footprint.html')
 
+    # ─── ADMIN AUTHENTICATION ROUTES ────────────────────────────────
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        # If already logged in, go straight to dashboard
+        if session.get('admin_logged_in'):
+            return redirect(url_for('admin_page'))
+
+        error = None
+        if request.method == 'POST':
+            # Check password
+            if request.form.get('password') == 'eco2026':
+                session['admin_logged_in'] = True
+                return redirect(url_for('admin_page'))
+            else:
+                error = "Invalid credentials. Access Denied."
+
+        return render_template('login.html', error=error)
+
+    @app.route('/logout')
+    def logout():
+        session.pop('admin_logged_in', None)
+        return redirect(url_for('login'))
+
     @app.route('/admin')
     def admin_page():
-        key = request.args.get('key')
-        if key != "eco2026":
-            return "<h1>403 Forbidden</h1><p>Access Denied. Contact System Admin.</p>", 403
-        # Fetch current cities so the admin can see what's already there
+        # SECURITY CHECK: Kick user back to login if no active session
+        if not session.get('admin_logged_in'):
+            return redirect(url_for('login'))
+
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT name, lat, lon FROM locations")
@@ -113,6 +137,10 @@ def create_app():
 
     @app.route('/admin/add_city', methods=['POST'])
     def add_new_city():
+        # SECURITY CHECK: Block unauthorized users from adding cities
+        if not session.get('admin_logged_in'):
+            return jsonify({"status": "error", "message": "Unauthorized. Access Denied."}), 403
+
         try:
             data = request.json
             name = data.get('name')
@@ -130,8 +158,6 @@ def create_app():
             return jsonify({"status": "success", "message": f"{name} added to database!"})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
-
-    from flask import jsonify
 
     @app.route('/get_heatmap_data')
     def get_heatmap_data():
@@ -182,14 +208,30 @@ def create_app():
             print(f"❌ Database Error: {e}")
             return jsonify({"error": str(e)}), 500
 
-    @app.route('/admin/delete_city/<name>', methods=['POST'])
-    def delete_city(name):
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM locations WHERE name = ?", (name,))
-        conn.commit()
-        conn.close()
-        return jsonify({"message": f"{name} removed."})
+    @app.route('/admin/delete_city', methods=['POST'])
+    def delete_city():
+        # 1. SECURITY CHECK: Ensure they are actually logged in!
+        if not session.get('admin_logged_in'):
+            return jsonify({"error": "Unauthorized. Access Denied."}), 403
+
+        # 2. Get the city name from the JSON body sent by the new admin.html
+        data = request.get_json()
+        name = data.get('name')
+
+        if not name:
+            return jsonify({"error": "City name is required"}), 400
+
+        # 3. Delete from Database
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("DELETE FROM locations WHERE name = ?", (name,))
+            conn.commit()
+            conn.close()
+
+            return jsonify({"message": f"Station '{name}' removed permanently."})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     @app.route('/analysis')
     def analysis_page():
