@@ -21,7 +21,7 @@
                 </div>
                 <div class="card-body bg-white p-4">
                     <div class="d-flex justify-content-between text-muted mb-2">
-                        <small id="chart-subtitle" class="text-primary fw-bold"><i class="bi bi-clock-history"></i> Showing last 24 hours</small>
+                        <small id="chart-subtitle" class="text-primary fw-bold"><i class="bi bi-clock-history"></i> Loading chart...</small>
                         <small><i class="bi bi-info-circle"></i> Actual (Blue) vs AI Predicted (Dashed Red)</small>
                     </div>
                     <div style="height: 350px; position: relative;">
@@ -31,40 +31,73 @@
             </div>
         </div>
     </div>
+
     <div class="row justify-content-center">
         <div class="col-md-10">
-
             <h4 class="fw-bold mb-3 text-dark"><i class="bi bi-robot text-primary me-2"></i> Detailed Prediction Logs</h4>
 
-            <div class="row mb-4 align-items-center justify-content-between">
-            <div class="col-auto d-flex gap-2 flex-wrap mb-2 mb-md-0">
-                <button class="btn btn-sm btn-outline-primary preset-btn active" data-range="1" onclick="applyPreset(this, 1)">Today</button>
-                <button class="btn btn-sm btn-outline-primary preset-btn" data-range="7" onclick="applyPreset(this, 7)">Last 7 days</button>
-                <button class="btn btn-sm btn-outline-primary preset-btn" data-range="30" onclick="applyPreset(this, 30)">Last 30 days</button>
-                <button class="btn btn-sm btn-outline-secondary preset-btn" data-range="0" onclick="applyPreset(this, 0)">All time</button>
+            <div class="d-flex justify-content-between align-items-center mb-4 p-3 bg-white rounded shadow-sm border border-light">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-funnel-fill text-primary fs-5"></i>
+                    <h6 class="mb-0 fw-bold">Data Controls</h6>
+                </div>
+
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="text-muted small fw-bold mb-0">Date:</label>
+                        <select id="smartDateSelector" class="form-select form-select-sm w-auto" onchange="filterBySmartDate()">
+                            <option value="all">All Available Dates</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-sm btn-success shadow-sm" onclick="openExportModal()">
+                        <i class="bi bi-file-earmark-pdf-fill me-1"></i> Export Report
+                    </button>
+                </div>
             </div>
 
-                        <div class="col-auto d-flex align-items-center gap-2 flex-wrap">
-                <input type="date" id="date-from" class="form-control form-control-sm" placeholder="From date" style="width:110px;">
-                <span class="text-muted">→</span>
-                <input type="date" id="date-to" class="form-control form-control-sm" placeholder="To date" style="width:110px;">
+            <div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow">
+                        <div class="modal-header bg-dark text-white">
+                            <h5 class="modal-title"><i class="bi bi-file-pdf text-danger me-2"></i>Configure PDF Report</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <p class="text-muted mb-4">Please confirm the data scope you wish to include in your combined PDF report.</p>
 
-                <button class="btn btn-sm btn-primary" onclick="applyCustomRange()">
-                    <i class="bi bi-funnel-fill"></i> Apply
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="clearAllFilters()">
-                    <i class="bi bi-x-lg"></i> Clear
-                </button>
+                            <ul class="list-group list-group-flush mb-4">
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span class="fw-bold">Target City:</span>
+                                    <span id="modalCityBadge" class="badge bg-primary rounded-pill">--</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span class="fw-bold">Historical Scope:</span>
+                                    <span id="modalDateBadge" class="badge bg-info text-dark rounded-pill">--</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span class="fw-bold">Live AQI Data:</span>
+                                    <span id="modalAqiBadge" class="badge rounded-pill">--</span>
+                                </li>
+                            </ul>
 
-                <button class="btn btn-sm btn-success ms-md-3 shadow-sm" onclick="exportCombinedPdf()">
-                    <i class="bi bi-file-earmark-pdf-fill me-1"></i> Export Combined PDF
-                </button>
+                            <div id="aqiWarning" class="alert alert-warning py-2 mb-0" style="display: none; font-size: 0.85rem;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                No live AQI data found in memory. Visit the <b>Live Dashboard</b> first if you want AQI metrics included.
+                            </div>
+                        </div>
+                        <div class="modal-footer bg-light">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-success px-4" onclick="executePdfExport()">
+                                <i class="bi bi-download me-1"></i> Download PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
 
             {% if weather %}
             <div class="accordion shadow-sm rounded-4 overflow-hidden" id="cityAccordion">
-
                 {% for city, records in weather|groupby('0') %}
                 <div class="accordion-item border-0 border-bottom city-group">
                     <h2 class="accordion-header" id="heading-{{ loop.index }}">
@@ -74,7 +107,6 @@
                     </h2>
                     <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse bg-light" data-bs-parent="#cityAccordion">
                         <div class="accordion-body p-0">
-
                             <div class="table-responsive shadow-inner" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-hover align-middle mb-0 text-center">
                                     <thead class="table-light text-muted sticky-top" style="z-index: 2; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem;">
@@ -111,7 +143,6 @@
                                     </tbody>
                                 </table>
                             </div>
-
                         </div>
                     </div>
                 </div>
@@ -127,39 +158,47 @@
     </div>
 </div>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
     // ==========================================
-    // GLOBAL STATE & FUNCTIONS
-    // Defined outside so inline onclick handlers work
+    // GLOBAL STATE & INITIALIZATION
     // ==========================================
     let tempChart = null;
     let rawWeatherData = [];
     let currentCity = "";
-    let currentDateFilter = null;
-    let fpFrom = null;
-    let fpTo = null;
 
+    $(document).ready(function() {
+        rawWeatherData = {{ weather | tojson | safe }};
+
+        // Populate the dropdown with unique dates from the table
+        populateSmartDateDropdown();
+
+        // Initialize City Selector
+        const citySelector = document.getElementById('citySelector');
+        if (citySelector && citySelector.options.length > 0) {
+            currentCity = citySelector.options[0].value;
+
+            citySelector.addEventListener('change', (e) => {
+                currentCity = e.target.value;
+                filterBySmartDate(); // Re-render chart for new city with current date filter
+            });
+        }
+    });
+
+    // ==========================================
+    // CHART LOGIC
+    // ==========================================
     function loadChart(selectedCity, dateStr) {
         let cityData = rawWeatherData.filter(row => row[0] === selectedCity);
 
-        if (dateStr) {
+        if (dateStr && dateStr !== 'all') {
             cityData = cityData.filter(row => row[3].substring(0, 10) === dateStr);
             $('#chart-subtitle').html(`<i class="bi bi-calendar-check"></i> Showing data for <strong>${dateStr}</strong>`);
         } else {
-            const now = new Date();
-            const past24h = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-
-            cityData = cityData.filter(row => {
-                let rowDate = new Date(row[3].replace(/-/g, '/'));
-                return rowDate >= past24h && rowDate <= now;
-            });
-            $('#chart-subtitle').html(`<i class="bi bi-clock-history"></i> Showing last 24 hours`);
+            $('#chart-subtitle').html(`<i class="bi bi-clock-history"></i> Showing all available records`);
         }
 
         cityData.sort((a, b) => new Date(a[3].replace(/-/g, '/')) - new Date(b[3].replace(/-/g, '/')));
@@ -175,7 +214,7 @@
         if (tempChart) tempChart.destroy();
 
         if (cityData.length === 0) {
-            $('#chart-subtitle').append(' <span class="text-danger">(No data found for this period)</span>');
+            $('#chart-subtitle').append(' <span class="text-danger">(No data found)</span>');
         }
 
         tempChart = new Chart(ctx, {
@@ -188,525 +227,338 @@
                         data: actualTemps,
                         borderColor: '#0d6efd',
                         backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 3
+                        borderWidth: 2, tension: 0.4, fill: true, pointRadius: 3
                     },
                     {
                         label: 'AI Predicted Temp (°C)',
                         data: aiTemps,
                         borderColor: '#dc3545',
                         backgroundColor: 'transparent',
-                        borderWidth: 2,
-                        borderDash: [5, 5],
-                        tension: 0.4,
-                        fill: false,
-                        pointRadius: 3
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        grid: { color: 'rgba(0,0,0,0.05)' },
-                        ticks: { color: '#6c757d' },
-                        title: { display: true, text: 'Temperature (°C)' }
-                    },
-                    x: {
-                        ticks: { color: '#6c757d', maxTicksLimit: 8 }
-                    }
-                },
-                plugins: {
-                    legend: { display: true, position: 'top' },
-                    tooltip: { mode: 'index', intersect: false }
-                }
-            }
-        });
-    }
-
-    // ── Date range filter logic ──────────────────────────────────
-    function applyPreset(btn, days) {
-        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        fpFrom.clear(); fpTo.clear();
-
-        const now  = new Date();
-        let from   = null;
-
-        if (days === 0) {
-            filterByRange(null, null);
-            currentDateFilter = null;
-            loadChart(currentCity, null);
-            return;
-        }
-
-        from = new Date(now);
-        from.setDate(from.getDate() - (days - 1));
-        from.setHours(0, 0, 0, 0);
-
-        const fromStr = from.toISOString().slice(0, 10);
-        const toStr   = now.toISOString().slice(0, 10);
-
-        filterByRange(fromStr, toStr);
-
-        currentDateFilter = days === 1 ? toStr : null;
-        if (days === 1) {
-            loadChart(currentCity, toStr);
-        } else {
-            loadChartRange(currentCity, fromStr, toStr);
-        }
-    }
-
-    function applyCustomRange() {
-        const from = document.getElementById('date-from').value;
-        const to   = document.getElementById('date-to').value;
-
-        if (!from && !to) { clearAllFilters(); return; }
-
-        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-
-        filterByRange(from || null, to || null);
-        loadChartRange(currentCity, from || null, to || null);
-    }
-
-    function clearAllFilters() {
-        fpFrom.clear(); fpTo.clear();
-        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-        document.querySelector('.preset-btn[data-range="1"]').classList.add('active');
-
-        filterByRange(null, null);
-        currentDateFilter = null;
-        loadChart(currentCity, null);
-    }
-
-    function filterByRange(from, to) {
-        $('.city-group').each(function() {
-            let hasVisible = false;
-            $(this).find('.time-row').each(function() {
-                const rowDate = $(this).find('.time-cell').text().trim().slice(0, 10);
-                let show = true;
-                if (from && rowDate < from) show = false;
-                if (to   && rowDate > to)   show = false;
-                $(this).toggle(show);
-                if (show) hasVisible = true;
-            });
-            $(this).toggle(hasVisible);
-        });
-    }
-
-    function loadChartRange(selectedCity, fromDate, toDate) {
-        let cityData = rawWeatherData.filter(row => row[0] === selectedCity);
-
-        if (fromDate || toDate) {
-            cityData = cityData.filter(row => {
-                const d = row[3].slice(0, 10);
-                if (fromDate && d < fromDate) return false;
-                if (toDate   && d > toDate)   return false;
-                return true;
-            });
-            const label = fromDate && toDate
-                ? `${fromDate} → ${toDate}`
-                : fromDate ? `From ${fromDate}` : `Until ${toDate}`;
-            $('#chart-subtitle').html(`<i class="bi bi-calendar-range"></i> Showing: <strong>${label}</strong>`);
-        } else {
-            loadChart(selectedCity, null);
-            return;
-        }
-
-        cityData.sort((a, b) => new Date(a[3].replace(/-/g,'/')) - new Date(b[3].replace(/-/g,'/')));
-
-        const labels      = cityData.map(row => {
-            const d = new Date(row[3].replace(/-/g,'/'));
-            return d.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-        });
-        const actualTemps = cityData.map(row => row[2]);
-        const aiTemps     = cityData.map(row => row[1]);
-
-        const ctx = document.getElementById('tempChart').getContext('2d');
-        if (tempChart) tempChart.destroy();
-
-        if (cityData.length === 0) {
-            $('#chart-subtitle').append(' <span class="text-danger">(No data found)</span>');
-        }
-
-        tempChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'Actual Temp (°C)',
-                        data: actualTemps,
-                        borderColor: '#0d6efd',
-                        backgroundColor: 'rgba(13,110,253,0.1)',
-                        borderWidth: 2, tension: 0.4, fill: true, pointRadius: 2
-                    },
-                    {
-                        label: 'AI Predicted Temp (°C)',
-                        data: aiTemps,
-                        borderColor: '#dc3545',
-                        backgroundColor: 'transparent',
-                        borderWidth: 2, borderDash: [5,5],
-                        tension: 0.4, fill: false, pointRadius: 2
+                        borderWidth: 2, borderDash: [5, 5], tension: 0.4, fill: false, pointRadius: 3
                     }
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
                 scales: {
-                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#6c757d' },
-                         title: { display: true, text: 'Temperature (°C)' } },
-                    x: { ticks: { color: '#6c757d', maxTicksLimit: 10 } }
+                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#6c757d' }, title: { display: true, text: 'Temperature (°C)' } },
+                    x: { ticks: { color: '#6c757d', maxTicksLimit: 8 } }
                 },
-                plugins: {
-                    legend: { display: true, position: 'top' },
-                    tooltip: { mode: 'index', intersect: false }
-                }
+                plugins: { legend: { display: true, position: 'top' }, tooltip: { mode: 'index', intersect: false } }
             }
         });
     }
 
-    $(document).ready(function() {
-        rawWeatherData = {{ weather | tojson | safe }};
+    // ==========================================
+    // SMART DATE FILTER LOGIC
+    // ==========================================
+    function populateSmartDateDropdown() {
+        const dates = new Set();
+        document.querySelectorAll('.time-row').forEach(tr => {
+            const timeText = tr.querySelector('td:first-child')?.textContent.trim();
+            if (timeText) {
+                const datePart = timeText.split(' ')[0]; // Gets "YYYY-MM-DD"
+                dates.add(datePart);
+            }
+        });
 
-        // Initialize City Selector and load the default 24h chart
-        const citySelector = document.getElementById('citySelector');
-        if (citySelector && citySelector.options.length > 0) {
-            currentCity = citySelector.options[0].value;
-            loadChart(currentCity, currentDateFilter); // Initial load
+        const select = document.getElementById('smartDateSelector');
 
-            citySelector.addEventListener('change', (e) => {
-                currentCity = e.target.value;
-                // Re-apply range context if inputs are populated
-                const from = document.getElementById('date-from').value;
-                const to = document.getElementById('date-to').value;
-                if (from || to) {
-                    loadChartRange(currentCity, from || null, to || null);
+        // Sort newest first
+        Array.from(dates).sort().reverse().forEach(date => {
+            const opt = document.createElement('option');
+            opt.value = date;
+            opt.textContent = date;
+            select.appendChild(opt);
+        });
+
+        // Auto-select the newest date to keep the UI clean
+        if (select.options.length > 1) {
+            select.selectedIndex = 1;
+        }
+        filterBySmartDate();
+    }
+
+    function filterBySmartDate() {
+        const selectedDate = document.getElementById('smartDateSelector').value;
+
+        // 1. Filter the Table
+        document.querySelectorAll('.city-group').forEach(group => {
+            let hasVisibleRows = false;
+
+            group.querySelectorAll('.time-row').forEach(tr => {
+                const timeText = tr.querySelector('td:first-child')?.textContent.trim() || '';
+                const rowDate = timeText.split(' ')[0];
+
+                if (selectedDate === 'all' || rowDate === selectedDate) {
+                    tr.style.display = '';
+                    hasVisibleRows = true;
                 } else {
-                    loadChart(currentCity, currentDateFilter);
+                    tr.style.display = 'none';
                 }
             });
+
+            // Hide the accordion group entirely if no dates match
+            group.style.display = hasVisibleRows ? '' : 'none';
+        });
+
+        // 2. Update the Chart
+        if (currentCity) {
+            loadChart(currentCity, selectedDate);
+        }
+    }
+
+    // ==========================================
+    // MODAL & EXPORT LOGIC
+    // ==========================================
+    function openExportModal() {
+        const city = document.getElementById('citySelector')?.value || 'Unknown City';
+        const dateSelect = document.getElementById('smartDateSelector');
+        const dateScope = dateSelect.options[dateSelect.selectedIndex].text;
+
+        const cachedAqiStr = localStorage.getItem('shared_aqi_data');
+        const aqiData = cachedAqiStr ? JSON.parse(cachedAqiStr) : null;
+
+        document.getElementById('modalCityBadge').textContent = city;
+        document.getElementById('modalDateBadge').textContent = dateScope;
+
+        const aqiBadge = document.getElementById('modalAqiBadge');
+        const aqiWarn = document.getElementById('aqiWarning');
+
+        if (aqiData && aqiData.city === city) {
+            aqiBadge.textContent = "Ready (" + aqiData.timestamp.split(',')[0] + ")";
+            aqiBadge.className = "badge bg-success rounded-pill";
+            aqiWarn.style.display = 'none';
+        } else {
+            aqiBadge.textContent = "Missing / Mismatch";
+            aqiBadge.className = "badge bg-warning text-dark rounded-pill";
+            aqiWarn.style.display = 'block';
         }
 
-        // Init flatpickr on both inputs
-        fpFrom = flatpickr("#date-from", {
-            dateFormat: "Y-m-d",
-            onChange: function() { /* user will click Apply */ }
-        });
-        fpTo = flatpickr("#date-to", {
-            dateFormat: "Y-m-d",
-            onChange: function() { /* user will click Apply */ }
-        });
-    });
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script>
-// =============================================================
-// EcoForecast — Combined PDF Export
-// Single page: AQI card on top, AI Analysis below
-// Requires jsPDF CDN loaded before this script
-// Call exportCombinedPdf() from the Export button
-// =============================================================
-
-function exportCombinedPdf() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-
-    const W = 210;
-    const margin = 14;
-    let y = 0;
-
-    // Palette
-    const blue   = [25,  118, 210];
-    const green  = [25,  135,  84];
-    const amber  = [255, 193,   7];
-    const orange = [253, 126,  20];
-    const red    = [220,  53,  69];
-    const gray   = [108, 117, 125];
-    const light  = [248, 249, 250];
-    const dark   = [33,   37,  41];
-
-    function aqiColor(v) {
-        if (v <= 50)  return green;
-        if (v <= 100) return amber;
-        if (v <= 150) return orange;
-        return red;
-    }
-    function aqiLabel(v) {
-        if (v <= 50)  return 'Good';
-        if (v <= 100) return 'Moderate';
-        if (v <= 150) return 'Unhealthy (Sensitive)';
-        if (v <= 200) return 'Unhealthy';
-        return 'Hazardous';
+        const exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
+        exportModal.show();
     }
 
-    // ── 1. Pull Combined Data (AQI from memory, UI from Results) ────────
-    const cachedAqiStr = localStorage.getItem('shared_aqi_data');
-    const aqiData = cachedAqiStr ? JSON.parse(cachedAqiStr) : null;
+    function executePdfExport() {
+        // Hide Modal
+        const modalEl = document.getElementById('exportModal');
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        modalInstance.hide();
 
-    const citySelector = document.getElementById('citySelector');
-    const analysisCity = citySelector ? citySelector.value : 'Unknown';
+        // Run PDF Generation
+        exportCombinedPdf();
+    }
 
-    const city       = aqiData?.city || analysisCity;
-    const timestamp  = aqiData?.timestamp || new Date().toLocaleString();
-    const temp       = aqiData?.temp || '--';
-    const wind       = aqiData?.wind || '--';
-    const aqiVal     = aqiData?.aqiVal || 0;
-    const doeStation = aqiData?.doeStation || '';
-    const pollutants = aqiData?.pollutants || [];
+    function exportCombinedPdf() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-    const dateFrom     = document.getElementById('date-from')?.value || '';
-    const dateTo       = document.getElementById('date-to')?.value   || '';
-    const activePreset = document.querySelector('.preset-btn.active')?.textContent?.trim() || 'Custom Range';
-    const periodLabel  = dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : activePreset;
+        const W = 210;
+        const margin = 14;
+        let y = 0;
 
-    // Scrape currently visible filtered rows in Results page
-    const rows = [];
-    document.querySelectorAll('.city-group').forEach(group => {
-        const cityBtn = group.querySelector('.accordion-button');
-        const groupCity = cityBtn ? cityBtn.textContent.trim().replace(/\s+/g, ' ') : '';
-        if (!groupCity.includes(analysisCity)) return;
+        // Palette
+        const blue   = [25,  118, 210];
+        const green  = [25,  135,  84];
+        const amber  = [255, 193,   7];
+        const orange = [253, 126,  20];
+        const red    = [220,  53,  69];
+        const gray   = [108, 117, 125];
+        const light  = [248, 249, 250];
+        const dark   = [33,   37,  41];
 
-        group.querySelectorAll('.time-row').forEach(tr => {
-            if (tr.style.display === 'none') return; // Respect the date filter!
-            const cells = tr.querySelectorAll('td');
-            if (cells.length < 5) return;
-            rows.push({
-                time:       cells[0].textContent.trim(),
-                actual:     cells[1].textContent.trim(),
-                predicted:  cells[2].textContent.trim(),
-                actWeather: cells[3].textContent.trim(),
-                aiWeather:  cells[4].textContent.trim(),
+        function aqiColor(v) {
+            if (v <= 50)  return green;
+            if (v <= 100) return amber;
+            if (v <= 150) return orange;
+            return red;
+        }
+        function aqiLabel(v) {
+            if (v <= 50)  return 'Good';
+            if (v <= 100) return 'Moderate';
+            if (v <= 150) return 'Unhealthy (Sensitive)';
+            if (v <= 200) return 'Unhealthy';
+            return 'Hazardous';
+        }
+
+        // ── 1. Pull Combined Data (AQI from memory, UI from Results) ────────
+        const cachedAqiStr = localStorage.getItem('shared_aqi_data');
+        const aqiData = cachedAqiStr ? JSON.parse(cachedAqiStr) : null;
+
+        const citySelector = document.getElementById('citySelector');
+        const analysisCity = citySelector ? citySelector.value : 'Unknown';
+
+        const city       = aqiData?.city || analysisCity;
+        const timestamp  = aqiData?.timestamp || new Date().toLocaleString();
+        const temp       = aqiData?.temp || '--';
+        const wind       = aqiData?.wind || '--';
+        const aqiVal     = aqiData?.aqiVal || 0;
+        const doeStation = aqiData?.doeStation || '';
+        const pollutants = aqiData?.pollutants || [];
+
+        // Get nice label from smart selector
+        const dateSelect   = document.getElementById('smartDateSelector');
+        const periodLabel  = dateSelect.options[dateSelect.selectedIndex].text;
+
+        // Scrape currently visible filtered rows in Results page
+        const rows = [];
+        document.querySelectorAll('.city-group').forEach(group => {
+            const cityBtn = group.querySelector('.accordion-button');
+            const groupCity = cityBtn ? cityBtn.textContent.trim().replace(/\s+/g, ' ') : '';
+            if (!groupCity.includes(analysisCity)) return;
+
+            group.querySelectorAll('.time-row').forEach(tr => {
+                if (tr.style.display === 'none') return; // Respect the dropdown filter!
+                const cells = tr.querySelectorAll('td');
+                if (cells.length < 5) return;
+                rows.push({
+                    time:       cells[0].textContent.trim(),
+                    actual:     cells[1].textContent.trim(),
+                    predicted:  cells[2].textContent.trim(),
+                    actWeather: cells[3].textContent.trim(),
+                    aiWeather:  cells[4].textContent.trim(),
+                });
             });
         });
-    });
 
-    // ── HEADER ───────────────────────────────────────────────
-    doc.setFillColor(...blue); doc.rect(0, 0, W, 26, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
-    doc.text('EcoForecast Malaysia', margin, 10);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    doc.text('Combined Data Report: AQI & Historical Analysis', margin, 16);
-    doc.text(`Generated: ${new Date().toLocaleString('en-MY')}`, margin, 21);
-    y = 32;
+        // ── HEADER ───────────────────────────────────────────────
+        doc.setFillColor(...blue); doc.rect(0, 0, W, 26, 'F');
+        doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+        doc.text('EcoForecast Malaysia', margin, 10);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+        doc.text('Combined Data Report: AQI & Historical Analysis', margin, 16);
+        doc.text(`Generated: ${new Date().toLocaleString('en-MY')}`, margin, 21);
+        y = 32;
 
-    // ── SECTION 1: AQI REPORT ────────────────────────────────
-    doc.setFillColor(...blue); doc.roundedRect(margin, y, 40, 6, 2, 2, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
-    doc.text('LIVE AQI REPORT', margin + 20, y + 4.2, { align: 'center' });
-    y += 9;
+        // ── SECTION 1: AQI REPORT ────────────────────────────────
+        doc.setFillColor(...blue); doc.roundedRect(margin, y, 40, 6, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+        doc.text('LIVE AQI REPORT', margin + 20, y + 4.2, { align: 'center' });
+        y += 9;
 
-    if (!aqiData) {
-        doc.setTextColor(...red); doc.setFontSize(8);
-        doc.text("No live AQI data found. Please visit the Live AQI dashboard first to load current data.", margin, y+5);
-        y += 15;
-    } else {
-        // City + meta row
-        doc.setFillColor(...light); doc.roundedRect(margin, y, W - margin * 2, 13, 3, 3, 'F');
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...dark);
-        doc.text(city, margin + 4, y + 5.5);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...gray);
-        doc.text(`Recorded: ${timestamp}`, margin + 4, y + 10.5);
-        if (doeStation) doc.text(`DOE Station: ${doeStation}`, W - margin - 4, y + 10.5, { align: 'right' });
-        y += 17;
+        if (!aqiData || aqiData.city !== analysisCity) {
+            doc.setTextColor(...red); doc.setFontSize(8);
+            doc.text("No matching live AQI data found in memory. Please visit the Live AQI dashboard first.", margin, y+5);
+            y += 15;
+        } else {
+            // City + meta row
+            doc.setFillColor(...light); doc.roundedRect(margin, y, W - margin * 2, 13, 3, 3, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...dark);
+            doc.text(city, margin + 4, y + 5.5);
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...gray);
+            doc.text(`Recorded: ${timestamp}`, margin + 4, y + 10.5);
+            if (doeStation) doc.text(`DOE Station: ${doeStation}`, W - margin - 4, y + 10.5, { align: 'right' });
+            y += 17;
 
-        // 3 metric cards (Temp, Wind, AQI)
-        const cW = (W - margin * 2 - 8) / 3;
+            // 3 metric cards (Temp, Wind, AQI)
+            const cW = (W - margin * 2 - 8) / 3;
 
-        doc.setFillColor(...light); doc.roundedRect(margin, y, cW, 18, 3, 3, 'F');
-        doc.setFontSize(6.5); doc.text('TEMPERATURE', margin + cW / 2, y + 4.5, { align: 'center' });
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...dark); doc.text(temp, margin + cW / 2, y + 14, { align: 'center' });
+            doc.setFillColor(...light); doc.roundedRect(margin, y, cW, 18, 3, 3, 'F');
+            doc.setFontSize(6.5); doc.text('TEMPERATURE', margin + cW / 2, y + 4.5, { align: 'center' });
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...dark); doc.text(temp, margin + cW / 2, y + 14, { align: 'center' });
 
-        const wx = margin + cW + 4;
-        doc.setFillColor(...light); doc.roundedRect(wx, y, cW, 18, 3, 3, 'F');
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(...gray); doc.text('WIND SPEED', wx + cW / 2, y + 4.5, { align: 'center' });
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...dark); doc.text(wind, wx + cW / 2, y + 14, { align: 'center' });
+            const wx = margin + cW + 4;
+            doc.setFillColor(...light); doc.roundedRect(wx, y, cW, 18, 3, 3, 'F');
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(...gray); doc.text('WIND SPEED', wx + cW / 2, y + 4.5, { align: 'center' });
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...dark); doc.text(wind, wx + cW / 2, y + 14, { align: 'center' });
 
-        const ax = margin + (cW + 4) * 2;
-        const ac = aqiColor(aqiVal);
-        doc.setFillColor(...ac); doc.roundedRect(ax, y, cW, 18, 3, 3, 'F');
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(255, 255, 255); doc.text('AIR QUALITY INDEX', ax + cW / 2, y + 4.5, { align: 'center' });
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(String(aqiVal), ax + cW / 2, y + 13, { align: 'center' });
-        doc.setFontSize(6.5); doc.text(aqiLabel(aqiVal), ax + cW / 2, y + 17, { align: 'center' });
-        y += 24;
+            const ax = margin + (cW + 4) * 2;
+            const ac = aqiColor(aqiVal);
+            doc.setFillColor(...ac); doc.roundedRect(ax, y, cW, 18, 3, 3, 'F');
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(255, 255, 255); doc.text('AIR QUALITY INDEX', ax + cW / 2, y + 4.5, { align: 'center' });
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(String(aqiVal), ax + cW / 2, y + 13, { align: 'center' });
+            doc.setFontSize(6.5); doc.text(aqiLabel(aqiVal), ax + cW / 2, y + 17, { align: 'center' });
+            y += 24;
 
-        // Pollutants Table
-        if (pollutants.length > 0) {
-            doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...dark);
-            doc.text('Pollutant Breakdown', margin, y);
-            y += 4;
+            // Pollutants Table
+            if (pollutants.length > 0) {
+                doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...dark);
+                doc.text('Pollutant Breakdown', margin, y);
+                y += 4;
 
-            const pCols = [38, 22, 28, 24, 70];
-            doc.setFillColor(...blue); doc.rect(margin, y, W - margin * 2, 6, 'F');
-            doc.setFontSize(7); doc.setTextColor(255, 255, 255);
-            let px = margin + 2;
-            ['Pollutant', 'Value', 'Unit', 'Level', 'Indicator'].forEach((h, i) => { doc.text(h, px, y + 4.2); px += pCols[i]; });
-            y += 6;
-
-            pollutants.forEach((p, idx) => {
-                doc.setFillColor(...(idx % 2 === 0 ? [255,255,255] : light));
-                doc.rect(margin, y, W - margin * 2, 6, 'F');
-                doc.setFont('helvetica', 'normal'); doc.setTextColor(...dark);
-
-                px = margin + 2;
-                doc.text(p.name.replace(/[^\x00-\x7F]/g, '').trim(), px, y + 4); px += pCols[0];
-                doc.text(String(p.value), px, y + 4); px += pCols[1];
-                doc.text(p.unit.replace('µ', 'u'), px, y + 4); px += pCols[2];
-                doc.text(p.level.slice(0, 15), px, y + 4); px += pCols[3];
-                doc.text(`${Math.round(p.pct)}% of max limit`, px, y + 4);
+                const pCols = [38, 22, 28, 24, 70];
+                doc.setFillColor(...blue); doc.rect(margin, y, W - margin * 2, 6, 'F');
+                doc.setFontSize(7); doc.setTextColor(255, 255, 255);
+                let px = margin + 2;
+                ['Pollutant', 'Value', 'Unit', 'Level', 'Indicator'].forEach((h, i) => { doc.text(h, px, y + 4.2); px += pCols[i]; });
                 y += 6;
-            });
-            y += 4;
-        }
-    }
 
-    // ── SECTION 2: AI & DATA ANALYSIS ────────────────────────
-    if (y > 230) { doc.addPage(); y = 15; } // Check for page break
+                pollutants.forEach((p, idx) => {
+                    doc.setFillColor(...(idx % 2 === 0 ? [255,255,255] : light));
+                    doc.rect(margin, y, W - margin * 2, 6, 'F');
+                    doc.setFont('helvetica', 'normal'); doc.setTextColor(...dark);
 
-    doc.setFillColor(...blue); doc.roundedRect(margin, y, 52, 6, 2, 2, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
-    doc.text('AI & DATA ANALYSIS', margin + 26, y + 4.2, { align: 'center' });
-    y += 9;
-
-    doc.setFillColor(...light); doc.roundedRect(margin, y, W - margin * 2, 10, 3, 3, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...dark); doc.text(analysisCity, margin + 4, y + 4.5);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...gray);
-    doc.text(`Filtered Period: ${periodLabel}  |  Records Found: ${rows.length}`, margin + 4, y + 9);
-    y += 16;
-
-    // Filtered Prediction Table
-    const rCols = [36, 18, 20, 40, 58];
-    const rHdrs = ['Time', 'Actual', 'AI Pred.', 'Actual Weather', 'AI Weather'];
-
-    doc.setFillColor(...blue); doc.rect(margin, y, W - margin * 2, 6, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(255, 255, 255);
-    let rx = margin + 2;
-    rHdrs.forEach((h, i) => { doc.text(h, rx, y + 4.2); rx += rCols[i]; });
-    y += 6;
-
-    const maxRows = 30; // Limit to prevent massive PDFs
-    rows.slice(0, maxRows).forEach((row, idx) => {
-        if (y > 275) {
-            doc.addPage(); y = 15;
-            doc.setFillColor(...blue); doc.rect(margin, y, W - margin * 2, 6, 'F');
-            doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-            rx = margin + 2; rHdrs.forEach((h, i) => { doc.text(h, rx, y + 4.2); rx += rCols[i]; });
-            y += 6;
-        }
-
-        doc.setFillColor(...(idx % 2 === 0 ? [255,255,255] : light)); doc.rect(margin, y, W - margin * 2, 7, 'F');
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(...dark);
-
-        rx = margin + 2;
-        doc.text(row.time.slice(0, 16), rx, y + 4.8); rx += rCols[0];
-        doc.text(row.actual, rx, y + 4.8); rx += rCols[1];
-        doc.text(row.predicted, rx, y + 4.8); rx += rCols[2];
-        doc.text(row.actWeather.replace(/[^\x00-\x7F]/g,'').slice(0,20), rx, y + 4.8); rx += rCols[3];
-        doc.text(row.aiWeather.replace(/[^\x00-\x7F]/g,'').slice(0,30), rx, y + 4.8);
-        y += 7;
-    });
-
-    if (rows.length > maxRows) {
-        doc.setFont('helvetica', 'italic'); doc.setTextColor(...gray);
-        doc.text(`... and ${rows.length - maxRows} more records. Use date filters to narrow scope.`, margin, y + 5);
-    } else if (rows.length === 0) {
-        doc.setFont('helvetica', 'italic'); doc.setTextColor(...red);
-        doc.text(`No historical data found for the selected dates.`, margin, y + 5);
-    }
-
-    // Save PDF
-    const fname = `Combined_Report_${analysisCity.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
-    doc.save(fname);
-}
-
-// ─── DATE FILTERING LOGIC ───
-
-function filterTableByDate(startDate, endDate) {
-    const startTime = startDate ? startDate.getTime() : 0;
-    const endTime = endDate ? endDate.getTime() : Infinity;
-
-    document.querySelectorAll('.city-group').forEach(group => {
-        let hasVisibleRows = false;
-
-        group.querySelectorAll('.time-row').forEach(tr => {
-            const dateCell = tr.querySelector('.time-cell');
-            if (!dateCell) return;
-
-            // Get date from table (e.g., "2026-04-02 19:00")
-            const rowDate = new Date(dateCell.textContent.trim().replace(/-/g, '/'));
-            const rowTime = rowDate.getTime();
-
-            // Hide or show the row
-            if (rowTime >= startTime && rowTime <= endTime) {
-                tr.style.display = '';
-                hasVisibleRows = true;
-            } else {
-                tr.style.display = 'none';
+                    px = margin + 2;
+                    doc.text(p.name.replace(/[^\x00-\x7F]/g, '').trim(), px, y + 4); px += pCols[0];
+                    doc.text(String(p.value), px, y + 4); px += pCols[1];
+                    doc.text(p.unit.replace('µ', 'u'), px, y + 4); px += pCols[2];
+                    doc.text(p.level.slice(0, 15), px, y + 4); px += pCols[3];
+                    doc.text(`${Math.round(p.pct)}% of max limit`, px, y + 4);
+                    y += 6;
+                });
+                y += 4;
             }
+        }
+
+        // ── SECTION 2: AI & DATA ANALYSIS ────────────────────────
+        if (y > 230) { doc.addPage(); y = 15; } // Check for page break
+
+        doc.setFillColor(...blue); doc.roundedRect(margin, y, 52, 6, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+        doc.text('AI & DATA ANALYSIS', margin + 26, y + 4.2, { align: 'center' });
+        y += 9;
+
+        doc.setFillColor(...light); doc.roundedRect(margin, y, W - margin * 2, 10, 3, 3, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...dark); doc.text(analysisCity, margin + 4, y + 4.5);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...gray);
+        doc.text(`Filtered Period: ${periodLabel}  |  Records Found: ${rows.length}`, margin + 4, y + 9);
+        y += 16;
+
+        // Filtered Prediction Table
+        const rCols = [36, 18, 20, 40, 58];
+        const rHdrs = ['Time', 'Actual', 'AI Pred.', 'Actual Weather', 'AI Weather'];
+
+        doc.setFillColor(...blue); doc.rect(margin, y, W - margin * 2, 6, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(255, 255, 255);
+        let rx = margin + 2;
+        rHdrs.forEach((h, i) => { doc.text(h, rx, y + 4.2); rx += rCols[i]; });
+        y += 6;
+
+        const maxRows = 30; // Limit to prevent massive PDFs
+        rows.slice(0, maxRows).forEach((row, idx) => {
+            if (y > 275) {
+                doc.addPage(); y = 15;
+                doc.setFillColor(...blue); doc.rect(margin, y, W - margin * 2, 6, 'F');
+                doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+                rx = margin + 2; rHdrs.forEach((h, i) => { doc.text(h, rx, y + 4.2); rx += rCols[i]; });
+                y += 6;
+            }
+
+            doc.setFillColor(...(idx % 2 === 0 ? [255,255,255] : light)); doc.rect(margin, y, W - margin * 2, 7, 'F');
+            doc.setFont('helvetica', 'normal'); doc.setTextColor(...dark);
+
+            rx = margin + 2;
+            doc.text(row.time.slice(0, 16), rx, y + 4.8); rx += rCols[0];
+            doc.text(row.actual, rx, y + 4.8); rx += rCols[1];
+            doc.text(row.predicted, rx, y + 4.8); rx += rCols[2];
+            doc.text(row.actWeather.replace(/[^\x00-\x7F]/g,'').slice(0,20), rx, y + 4.8); rx += rCols[3];
+            doc.text(row.aiWeather.replace(/[^\x00-\x7F]/g,'').slice(0,30), rx, y + 4.8);
+            y += 7;
         });
 
-        // Hide the whole city accordion if it has no matching dates
-        group.style.display = hasVisibleRows ? '' : 'none';
-    });
-}
+        if (rows.length > maxRows) {
+            doc.setFont('helvetica', 'italic'); doc.setTextColor(...gray);
+            doc.text(`... and ${rows.length - maxRows} more records. Use date filters to narrow scope.`, margin, y + 5);
+        } else if (rows.length === 0) {
+            doc.setFont('helvetica', 'italic'); doc.setTextColor(...red);
+            doc.text(`No historical data found for the selected dates.`, margin, y + 5);
+        }
 
-function applyPreset(btn, days) {
-    // Highlight active button
-    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    // Clear custom inputs
-    document.getElementById('date-from').value = '';
-    document.getElementById('date-to').value = '';
-
-    if (days === 0) {
-        filterTableByDate(null, null); // All time
-        return;
+        // Save PDF
+        const cleanPeriod = periodLabel.replace(/[\/\s:]+/g, '_');
+        const fname = `Combined_Report_${analysisCity.replace(/\s+/g,'_')}_${cleanPeriod}.pdf`;
+        doc.save(fname);
     }
-
-    const end = new Date();
-    const start = new Date();
-
-    if (days === 1) {
-        start.setHours(0, 0, 0, 0); // Midnight today
-    } else {
-        start.setDate(start.getDate() - (days - 1));
-        start.setHours(0, 0, 0, 0);
-    }
-
-    filterTableByDate(start, end);
-}
-
-function applyCustomRange() {
-    const fromVal = document.getElementById('date-from').value;
-    const toVal = document.getElementById('date-to').value;
-
-    if (!fromVal && !toVal) {
-        alert("Please select at least one date.");
-        return;
-    }
-
-    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-
-    let start = fromVal ? new Date(fromVal.replace(/-/g, '/')) : null;
-    let end = toVal ? new Date(toVal.replace(/-/g, '/')) : null;
-
-    if (end) end.setHours(23, 59, 59, 999);
-
-    filterTableByDate(start, end);
-}
-
-function clearAllFilters() {
-    document.getElementById('date-from').value = '';
-    document.getElementById('date-to').value = '';
-
-    const todayBtn = document.querySelector('.preset-btn[data-range="1"]');
-    if (todayBtn) applyPreset(todayBtn, 1);
-}
 </script>
 
 {% endblock %}
