@@ -99,6 +99,22 @@ def create_app():
     def footprint():
         return render_template('footprint.html')
 
+    @app.route('/about')
+    def about():
+        return render_template('about.html')
+
+    @app.route('/terms')
+    def terms():
+        return render_template('terms.html')
+
+    @app.route('/privacy')
+    def privacy():
+        return render_template('privacy.html')
+
+    @app.route('/contact')
+    def contact():
+        return render_template('contact.html')
+
     # ─── ADMIN AUTHENTICATION ROUTES ────────────────────────────────
     @app.route('/login', methods=['GET', 'POST'])
     def login():
@@ -923,6 +939,7 @@ def create_app():
         except Exception as e:
             print(f"❌ CRITICAL ROUTE ERROR: {e}")
             return jsonify({"error": str(e), "rain_percentage": 0, "forecast_data": []}), 500
+
 
     return app
 

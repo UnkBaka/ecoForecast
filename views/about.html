@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="margin-top: 100px; margin-bottom: 80px;">
+    <div class="card shadow-lg border-0" style="background: rgba(10, 25, 47, 0.85); color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: 15px;">
+        <div class="card-body p-5">
+            <h1 class="fw-bold mb-4" style="color: #3498db;">About EcoForecast</h1>
+            <hr style="border-color: rgba(255,255,255,0.2);">
+            
+            <h4 class="mt-4 mb-3" style="color: #2ecc71;">Malaysian Weather Intelligence</h4>
+            <p>EcoForecast is an advanced, AI-driven weather prediction and environmental analysis platform designed specifically for Malaysia. Our goal is to provide accurate, hyper-local insights into weather patterns, air quality (AQI), and environmental impact.</p>
+
+            <h4 class="mt-4 mb-3" style="color: #2ecc71;">How Our AI Works</h4>
+            <p>Our platform is powered by an <strong>LSTM (Long Short-Term Memory) Neural Network</strong>. Unlike standard weather apps that just relay current data, our AI analyzes the last 15 days of historical weather data (temperature, humidity, pressure, and wind) to recognize complex patterns and predict future conditions.</p>
+
+            <h4 class="mt-4 mb-3" style="color: #2ecc71;">Data Sources</h4>
+            <p>We believe in transparent, open-source data. All of our raw meteorological data is generously provided by <a href="https://open-meteo.com/" target="_blank" style="color: #3498db;">Open-Meteo</a>. Our interactive mapping system utilizes <a href="https://www.openstreetmap.org/" target="_blank" style="color: #3498db;">OpenStreetMap</a>.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="margin-top: 100px; margin-bottom: 80px;">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0 text-center" style="background: rgba(10, 25, 47, 0.85); color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: 15px;">
+                <div class="card-body p-5">
+                    <i class="bi bi-envelope-paper text-white" style="font-size: 3rem;"></i>
+                    <h1 class="fw-bold my-4" style="color: #3498db;">Get in Touch</h1>
+                    <p class="lead mb-5">Have a question about the AI model, found a bug, or want to discuss collaboration? Feel free to reach out!</p>
+                    
+                    <div class="d-grid gap-3 d-sm-flex justify-content-sm-center">
+                        <a href="mailto:support@ecoforecast.com" class="btn btn-primary btn-lg px-4 gap-3" style="background-color: #3498db; border: none;">
+                            <i class="bi bi-envelope"></i> Email Us
+                        </a>
+                        <a href="#" target="_blank" class="btn btn-outline-light btn-lg px-4">
+                            <i class="bi bi-github"></i> View on GitHub
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

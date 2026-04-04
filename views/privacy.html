@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="margin-top: 100px; margin-bottom: 80px;">
+    <div class="card shadow-lg border-0" style="background: rgba(10, 25, 47, 0.85); color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: 15px;">
+        <div class="card-body p-5">
+            <h1 class="fw-bold mb-4" style="color: #3498db;">Privacy Policy</h1>
+            <hr style="border-color: rgba(255,255,255,0.2);">
+            
+            <p class="text-muted">Last Updated: April 2026</p>
+
+            <h5 class="mt-4 text-white">1. Information We Collect</h5>
+            <p>We respect your privacy. EcoForecast does <strong>not</strong> require user accounts for general use, and we do not collect personal identifiable information (PII) such as your name, email, or phone number unless you explicitly contact us.</p>
+
+            <h5 class="mt-4 text-white">2. Location Data</h5>
+            <p>If you click on our interactive maps, we temporarily process those map coordinates (Latitude and Longitude) to query our weather APIs. This location data is processed in real-time and is not permanently tied to you or your IP address.</p>
+
+            <h5 class="mt-4 text-white">3. Cookies and Admin Sessions</h5>
+            <p>We do not use tracking cookies for advertising. We only use essential, secure session cookies strictly for the Administrators of the platform to access the backend dashboard securely.</p>
+
+            <h5 class="mt-4 text-white">4. Data Sharing</h5>
+            <p>We do not sell, trade, or rent user data to others. Coordinate data is passed securely to our partner APIs (Open-Meteo) strictly for the purpose of retrieving weather data.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
