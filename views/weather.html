@@ -695,23 +695,23 @@ window.updateForecastView = function(range, e) {
         return;
         }
 
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
-            .then(res => res.json())
-            .then(geo => {
-                // Check for city, town, district, village, suburb, or even just the state!
-                let addr = geo.address || {};
-                let locName = addr.city || addr.town || addr.municipality || addr.state_district || addr.county || addr.village || addr.suburb || addr.state || geo.name || "Unknown Area";
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=en,ms`)
+        .then(res => res.json())
+        .then(geo => {
+            // Check for city, town, district, village, suburb, or even just the state!
+            let addr = geo.address || {};
+            let locName = addr.city || addr.town || addr.municipality || addr.state_district || addr.county || addr.village || addr.suburb || addr.state || geo.name || "Unknown Area";
 
-                tempPopup.setContent(`
-                    <div style="text-align: center; padding: 5px;">
-                        <b>${locName}</b><br><small>${lat}, ${lng}</small><br>
-                        <button onclick="confirmCustomPin(${lat}, ${lng}, '${locName.replace(/'/g, "\\'")}')"
-                                style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:50px; cursor:pointer; margin-top:10px; width: 100%;">
-                            Run Prediction
-                        </button>
-                    </div>`);
-            }).catch(() => tempPopup.setContent(`<b>Unknown Location</b>`));
-    });
+            tempPopup.setContent(`
+                <div style="text-align: center; padding: 5px;">
+                    <b>${locName}</b><br><small>${lat}, ${lng}</small><br>
+                    <button onclick="confirmCustomPin(${lat}, ${lng}, '${locName.replace(/'/g, "\\'")}')"
+                            style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:50px; cursor:pointer; margin-top:10px; width: 100%;">
+                        Run Prediction
+                    </button>
+                </div>`);
+        }).catch(() => tempPopup.setContent(`<b>Unknown Location</b>`));
+});
 
     window.confirmCustomPin = function(lat, lng, locName) {
     map.closePopup(tempPopup);
