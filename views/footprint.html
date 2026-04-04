@@ -158,18 +158,36 @@
     .tip-title { font-weight: 600; color: var(--text-dark); margin-bottom: 5px; font-size: 0.95rem; }
     .tip-desc { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; }
 
-    /* --- MOBILE RESPONSIVENESS --- */
+    /* --- MOBILE RESPONSIVENESS FIXES --- */
+    body, html {
+        overflow-x: hidden; /* Absolutely prevents horizontal scrolling */
+    }
+
     @media (max-width: 768px) {
         .fp-hero { padding: 90px 15px 60px; }
         .fp-hero h1 { font-size: 2.2rem; }
-        .fp-main { margin: -30px 15px 40px; padding: 20px; border-radius: 20px; }
+
+        .fp-main {
+            margin: -30px 15px 40px;
+            padding: 20px;
+            border-radius: 20px;
+            width: auto; /* Lets it resize naturally */
+            max-width: 100vw;
+            overflow-x: hidden; /* Contains the results bars inside the white card */
+        }
+
         .mode-toggle { flex-direction: column; }
         .size-row { flex-direction: column; align-items: flex-start; }
-        .size-slider { width: 100%; }
-        .inputs-grid { grid-template-columns: 1fr; }
+        .size-slider { width: 100%; max-width: 100%; }
+
+        .inputs-grid {
+            grid-template-columns: 1fr; /* Forces single column */
+            width: 100%;
+        }
+
         .compare-row, .breakdown-row { flex-wrap: wrap; }
         .compare-name, .breakdown-label { width: 100%; margin-bottom: 5px; }
-        .compare-track, .breakdown-bar-wrap { margin: 0 0 5px 0; width: 100%; flex: none; }
+        .compare-track, .breakdown-bar-wrap { margin: 0 0 5px 0; width: 100%; flex: none; box-sizing: border-box; }
         .compare-num, .breakdown-val { width: 100%; text-align: left; }
         .tip-item { flex-direction: column; }
     }
@@ -198,7 +216,7 @@
 
         <div class="fp-section">
             <div class="section-label"><i class="bi bi-search"></i> Step 1 — Search your building name</div>
-            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px;">
+            <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:14px;">
                 Just type the building name — we'll try to detect the type and location automatically.
             </p>
             <div class="search-wrapper">
@@ -215,24 +233,24 @@
             </div>
 
             <div id="detectedCard" style="display:none; margin-top:16px; background:rgba(46,204,113,0.06); border:1px solid rgba(46,204,113,0.25); border-radius:14px; padding:18px 20px;">
-                <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--accent-green); font-weight:700; margin-bottom:12px;">
+                <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--green); font-weight:700; margin-bottom:12px;">
                     <i class="bi bi-magic"></i> Auto-Detected Details
                 </div>
                 <div style="display:flex; flex-wrap:wrap; gap:12px;">
                     <div style="flex:1; min-width:160px;">
-                        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:3px;">Building Name</div>
-                        <div id="det_name" style="font-weight:700; color:var(--text-dark); font-size:0.95rem;">—</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:3px;">Building Name</div>
+                        <div id="det_name" style="font-weight:700; color:white; font-size:0.95rem;">—</div>
                     </div>
                     <div style="flex:1; min-width:160px;">
-                        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:3px;">Detected Type</div>
-                        <div id="det_type" style="font-weight:700; color:var(--accent-green); font-size:0.95rem;">—</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:3px;">Detected Type</div>
+                        <div id="det_type" style="font-weight:700; color:var(--green); font-size:0.95rem;">—</div>
                     </div>
                     <div style="flex:1; min-width:160px;">
-                        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:3px;">Address</div>
-                        <div id="det_addr" style="font-weight:600; color:var(--text-dark); font-size:0.85rem;">—</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:3px;">Address</div>
+                        <div id="det_addr" style="font-weight:600; color:var(--text); font-size:0.85rem;">—</div>
                     </div>
                 </div>
-                <div id="det_warning" style="display:none; margin-top:12px; font-size:0.8rem; color:#e67e22; background:rgba(230,126,34,0.08); border:1px dashed rgba(230,126,34,0.3); border-radius:8px; padding:8px 12px;">
+                <div id="det_warning" style="display:none; margin-top:12px; font-size:0.8rem; color:var(--yellow); background:rgba(241,196,15,0.08); border:1px dashed rgba(241,196,15,0.3); border-radius:8px; padding:8px 12px;">
                     ⚠️ Could not detect building type automatically. Please select one below manually.
                 </div>
             </div>
@@ -240,7 +258,7 @@
 
         <div class="fp-section">
             <div class="section-label"><i class="bi bi-building"></i> Step 2 — Confirm building type</div>
-            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px;">
+            <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:14px;">
                 This is auto-filled from your search. You can change it if needed.
             </p>
             <div class="btype-grid">
@@ -294,7 +312,7 @@
     <div id="manualMode" style="display:none;">
 
         <div class="fp-section">
-            <div class="section-label"><i class="bi bi-building"></i> Step 1 — Select Building <span class="optional-tag" style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">(optional)</span></div>
+            <div class="section-label"><i class="bi bi-building"></i> Step 1 — Select Building <span class="optional-tag">(optional)</span></div>
             <div class="search-wrapper">
                 <input type="text" class="search-input" id="buildingSearchM" placeholder="Search e.g. Sentral College Penang..." autocomplete="off" oninput="handleSearch(this.value, 'searchDropdownM', true)">
                 <button class="search-btn" onclick="triggerSearch('buildingSearchM','searchDropdownM',true)"><i class="bi bi-search"></i></button>
@@ -328,7 +346,7 @@
                     <button class="info-btn" onclick="toggleTip('tip_elec',event)">
                         <i class="bi bi-info-circle"></i>
                         <div class="tooltip-box" id="tip_elec">
-                            <strong style="color:var(--primary-blue);">How to find this</strong>
+                            <strong>How to find this</strong>
                             Check your TNB electricity bill — it shows kWh used per month. A typical office uses 15–30 kWh per m² per month. For daily, divide monthly kWh by 30.
                         </div>
                     </button>
@@ -344,7 +362,7 @@
                     <button class="info-btn" onclick="toggleTip('tip_ac',event)">
                         <i class="bi bi-info-circle"></i>
                         <div class="tooltip-box" id="tip_ac">
-                            <strong style="color:var(--primary-blue);">How to estimate this</strong>
+                            <strong>How to estimate this</strong>
                             Count total hours AC units run per day. Most Malaysian offices run AC 8–10 hrs/day. Multiply by number of AC units if entering total across the building.
                         </div>
                     </button>
@@ -360,7 +378,7 @@
                     <button class="info-btn" onclick="toggleTip('tip_trans',event)">
                         <i class="bi bi-info-circle"></i>
                         <div class="tooltip-box" id="tip_trans">
-                            <strong style="color:var(--primary-blue);">How to estimate this</strong>
+                            <strong>How to estimate this</strong>
                             Avg commute distance × number of staff × working days. E.g. 20 staff × 15km × 5 days = 1,500 km/week. Include visitors for high-footfall buildings.
                         </div>
                     </button>
@@ -376,7 +394,7 @@
                     <button class="info-btn" onclick="toggleTip('tip_waste',event)">
                         <i class="bi bi-info-circle"></i>
                         <div class="tooltip-box" id="tip_waste">
-                            <strong style="color:var(--primary-blue);">How to estimate this</strong>
+                            <strong>How to estimate this</strong>
                             A typical office worker generates ~0.5–1 kg waste/day. Multiply by staff count and days. Ask your building's waste contractor for accurate figures.
                         </div>
                     </button>
@@ -392,7 +410,7 @@
                     <button class="info-btn" onclick="toggleTip('tip_water',event)">
                         <i class="bi bi-info-circle"></i>
                         <div class="tooltip-box" id="tip_water">
-                            <strong style="color:var(--primary-blue);">How to find this</strong>
+                            <strong>How to find this</strong>
                             Check your SAJ/PBAPP water bill for monthly m³ usage. 1 m³ on the bill = 1,000 litres. A typical office uses 30–50 litres per person per day.
                         </div>
                     </button>
@@ -409,33 +427,33 @@
 
     <div id="resultsSection" style="display:none;">
         <div class="result-hero">
-            <div style="color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:2px;">Total CO₂ Equivalent</div>
+            <div style="color:var(--text-dim);font-size:0.85rem;text-transform:uppercase;letter-spacing:2px;">Total CO₂ Equivalent</div>
             <div class="co2-number" id="res_co2">0</div>
             <div class="co2-unit">kg CO₂e — <span id="res_period_label">Monthly</span></div>
             <div class="rating-badge" id="res_rating_badge">—</div>
-            <div style="font-size:0.85rem;color:var(--text-muted);" id="res_building_name">—</div>
-            <div id="guided_note" style="display:none;margin-top:10px;font-size:0.8rem;color:var(--text-muted);background:rgba(52,152,219,0.07);border:1px dashed rgba(52,152,219,0.2);border-radius:8px;padding:8px 14px;">
-                📊 This is an <strong style="color:var(--text-dark);">estimate</strong> based on typical values for your building type and size. Switch to Manual Mode for precise figures.
+            <div style="font-size:0.85rem;color:var(--text-dim);" id="res_building_name">—</div>
+            <div id="guided_note" style="display:none;margin-top:10px;font-size:0.8rem;color:var(--text-dim);background:rgba(52,152,219,0.07);border:1px dashed rgba(52,152,219,0.2);border-radius:8px;padding:8px 14px;">
+                📊 This is an <strong style="color:white;">estimate</strong> based on typical values for your building type and size. Switch to Manual Mode for precise figures.
             </div>
         </div>
 
         <div class="section-label" style="margin-bottom:14px;"><i class="bi bi-bar-chart-line"></i> Comparison</div>
         <div class="compare-bar">
-            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;">vs. Malaysia building benchmarks (monthly)</div>
+            <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;">vs. Malaysia building benchmarks (monthly)</div>
             <div class="compare-row">
-                <div class="compare-name" style="color:var(--primary-blue);">📍 Your Building</div>
-                <div class="compare-track"><div class="compare-fill" id="bar_yours" style="width:0%;background:var(--primary-blue);"></div></div>
-                <div class="compare-num" id="num_yours" style="color:var(--primary-blue);">—</div>
+                <div class="compare-name" style="color:var(--blue);">📍 Your Building</div>
+                <div class="compare-track"><div class="compare-fill" id="bar_yours" style="width:0%;background:var(--blue);"></div></div>
+                <div class="compare-num" id="num_yours" style="color:var(--blue);">—</div>
             </div>
             <div class="compare-row">
-                <div class="compare-name" style="color:var(--accent-green);">🏢 Avg Office</div>
-                <div class="compare-track"><div class="compare-fill" id="bar_office" style="width:0%;background:var(--accent-green);"></div></div>
-                <div class="compare-num" id="num_office" style="color:var(--accent-green);">—</div>
+                <div class="compare-name" style="color:var(--green);">🏢 Avg Office</div>
+                <div class="compare-track"><div class="compare-fill" id="bar_office" style="width:0%;background:var(--green);"></div></div>
+                <div class="compare-num" id="num_office" style="color:var(--green);">—</div>
             </div>
             <div class="compare-row">
-                <div class="compare-name" style="color:#f1c40f;">🏫 Avg Campus</div>
-                <div class="compare-track"><div class="compare-fill" id="bar_campus" style="width:0%;background:#f1c40f;"></div></div>
-                <div class="compare-num" id="num_campus" style="color:#f1c40f;">—</div>
+                <div class="compare-name" style="color:var(--yellow);">🏫 Avg Campus</div>
+                <div class="compare-track"><div class="compare-fill" id="bar_campus" style="width:0%;background:var(--yellow);"></div></div>
+                <div class="compare-num" id="num_campus" style="color:var(--yellow);">—</div>
             </div>
         </div>
 
@@ -453,24 +471,6 @@
     let currentPeriod = 'daily';
     let currentBType = null;
     let searchTimeout = null;
-
-    // --- LOCATION AWARENESS FOR SMART SEARCH ---
-    let userLat = null;
-    let userLon = null;
-
-    // Ask the browser for the user's location to show nearby results first
-    if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                userLat = position.coords.latitude;
-                userLon = position.coords.longitude;
-                console.log("📍 Location secured! Searches will now prioritize nearby places.");
-            },
-            (error) => {
-                console.log("Location access denied or unavailable. Using standard search.");
-            }
-        );
-    }
 
     const FACTORS = { electricity: 0.694, aircon: 0.52, transport: 0.192, waste: 0.5, water: 0.00034 };
     const BENCHMARKS = { office: 1800, campus: 3200 };
@@ -521,13 +521,13 @@
         document.querySelectorAll('.search-results-dropdown').forEach(d => d.style.display = 'none');
     });
 
-    // --- SEARCH BAR LOGIC (Unrestricted & Location-Aware) ---
+    // --- SEARCH BAR LOGIC (Now with advanced filtering!) ---
     function handleSearch(val, dropdownId, isManual) {
         clearTimeout(searchTimeout);
         if (val.length < 3) { document.getElementById(dropdownId).style.display = 'none'; return; }
 
         const dropdown = document.getElementById(dropdownId);
-        dropdown.innerHTML = '<div style="padding: 15px; text-align: center; color: var(--primary-blue);"><div class="spinner-border spinner-border-sm"></div> Searching live map...</div>';
+        dropdown.innerHTML = '<div style="padding: 15px; text-align: center; color: var(--primary-blue);"><div class="spinner-border spinner-border-sm"></div> Searching...</div>';
         dropdown.style.display = 'block';
 
         searchTimeout = setTimeout(() => doSearch(val, dropdownId, isManual), 500);
@@ -539,21 +539,21 @@
     }
 
     function doSearch(query, dropdownId, isManual) {
-        // Base URL for OSM search
-        let url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&countrycodes=my&limit=8&addressdetails=1&extratags=1`;
-
-        // 🌟 THE MAGIC: Tell the database to prioritize places near the user's location!
-        if (userLat && userLon) {
-            url += `&lat=${userLat}&lon=${userLon}`;
-        }
-
-        fetch(url)
+        // Request 10 results so we have enough to filter from
+        fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&countrycodes=my&limit=10&addressdetails=1&extratags=1`)
             .then(r => r.json())
             .then(data => {
                 const dropdown = document.getElementById(dropdownId);
 
-                if (!data.length) {
-                    dropdown.innerHTML = `<div class="result-item"><div style="color:var(--text-muted); text-align:center;">No matches found. Try a broader search.</div></div>`;
+                // FILTER OUT JUNK: Hide bus stops, roads, and traffic signals
+                const cleanData = data.filter(item => {
+                    const badTypes = ['bus_stop', 'stop_position', 'traffic_signals', 'pitch', 'station', 'yes'];
+                    const badClasses = ['highway', 'railway', 'route'];
+                    return !badTypes.includes(item.type) && !badClasses.includes(item.class);
+                }).slice(0, 5); // Keep only the top 5 REAL buildings
+
+                if (!cleanData.length) {
+                    dropdown.innerHTML = `<div class="result-item"><div style="color:var(--text-muted); text-align:center;">No exact building matches found. Try a broader search.</div></div>`;
                     dropdown.style.display = 'block';
                     return;
                 }
@@ -562,7 +562,7 @@
                 const tagId   = isManual ? 'buildingTagM'    : 'buildingTag';
                 const nameId  = isManual ? 'buildingTagNameM': 'buildingTagName';
 
-                dropdown.innerHTML = data.map(r => {
+                dropdown.innerHTML = cleanData.map(r => {
                     const safeJson = encodeURIComponent(JSON.stringify({ class: r.class, type: r.type, display_name: r.display_name }));
                     const safeName = r.display_name.replace(/'/g, "\\'");
                     const shortName = r.name || r.display_name.split(',')[0];
@@ -572,7 +572,7 @@
                     <div class="result-item" onclick="selectBuilding('${safeName}',${r.lat},${r.lon},'${dropdownId}','${inputId}','${tagId}','${nameId}','${safeJson}')">
                         <div style="font-weight: 600; color: var(--text-dark); font-size: 1.05rem;">${shortName}</div>
                         <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; line-height: 1.3;">${r.display_name}</div>
-                        ${typeTag ? `<span style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; background: rgba(52, 152, 219, 0.1); color: var(--primary-blue); padding: 3px 8px; border-radius: 10px; display: inline-block; margin-top: 8px;">${typeTag}</span>` : ''}
+                        ${typeTag ? `<span style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; background: rgba(52, 152, 219, 0.2); color: var(--primary-blue); padding: 3px 8px; border-radius: 10px; display: inline-block; margin-top: 8px;">${typeTag}</span>` : ''}
                     </div>`;
                 }).join('');
                 dropdown.style.display = 'block';
@@ -648,10 +648,10 @@
             const suggestedSize = TYPE_DEFAULT_SIZES[detectedType];
             document.getElementById('sizeSlider').value = suggestedSize;
             updateSizeLabel(suggestedSize);
-            document.getElementById('sizeHint').innerHTML = `💡 We've pre-set a typical size for a <strong style="color:var(--text-dark);">${TYPE_LABELS[detectedType]}</strong>. Adjust the slider if you know the actual floor area.`;
+            document.getElementById('sizeHint').innerHTML = `💡 We've pre-set a typical size for a <strong>${TYPE_LABELS[detectedType]}</strong>. Adjust the slider if you know the actual floor area.`;
         } else {
             document.getElementById('det_type').textContent = 'Not detected';
-            document.getElementById('det_type').style.color = '#e67e22';
+            document.getElementById('det_type').style.color = '#f1c40f';
             document.getElementById('det_warning').style.display = 'block';
         }
     }
@@ -661,7 +661,7 @@
         document.getElementById('buildingSearch').value = '';
         document.getElementById('buildingTag').style.display = 'none';
         document.getElementById('detectedCard').style.display = 'none';
-        document.getElementById('sizeHint').innerHTML = `💡 <strong style="color:var(--text-dark);">Not sure of the exact size?</strong> A typical classroom ≈ 60 m². A shophouse floor ≈ 200 m². A college block ≈ 2,000–5,000 m². Just pick the nearest estimate.`;
+        document.getElementById('sizeHint').innerHTML = `💡 <strong>Not sure of the exact size?</strong> A typical classroom ≈ 60 m². A shophouse floor ≈ 200 m². A college block ≈ 2,000–5,000 m². Just pick the nearest estimate.`;
     }
 
     function clearBuilding(inputId, tagId) {
@@ -723,9 +723,9 @@
 
         let rating, ratingColor, ratingBg;
         if      (monthly < 800)  { rating = '🌿 Excellent — Low Footprint';  ratingColor = '#2ecc71'; ratingBg = 'rgba(46,204,113,0.15)'; }
-        else if (monthly < 1800) { rating = '✅ Good — Below Average';        ratingColor = '#3498db'; ratingBg = 'rgba(52,152,219,0.15)'; }
+        else if (monthly < 1800) { rating = '✅ Good — Below Average';        ratingColor = '#00ffff'; ratingBg = 'rgba(0,255,255,0.1)'; }
         else if (monthly < 3200) { rating = '⚠️ Moderate — Near Average';    ratingColor = '#f1c40f'; ratingBg = 'rgba(241,196,15,0.15)'; }
-        else if (monthly < 5000) { rating = '🔴 High — Above Average';       ratingColor = '#e67e22'; ratingBg = 'rgba(230,126,34,0.15)'; }
+        else if (monthly < 5000) { rating = '🔴 High — Above Average';       ratingColor = '#ff6600'; ratingBg = 'rgba(255,102,0,0.15)'; }
         else                     { rating = '🚨 Critical — Very High';        ratingColor = '#e74c3c'; ratingBg = 'rgba(231,76,60,0.15)'; }
 
         const badge = document.getElementById('res_rating_badge');
@@ -745,7 +745,7 @@
 
         const items = [
             { label: '⚡ Electricity', val: co2.electricity, color: '#3498db' },
-            { label: '❄️ Air Con',     val: co2.aircon,      color: '#00cccc' },
+            { label: '❄️ Air Con',     val: co2.aircon,      color: '#00ffff' },
             { label: '🚗 Transport',   val: co2.transport,   color: '#f1c40f' },
             { label: '🗑️ Waste',       val: co2.waste,       color: '#e74c3c' },
             { label: '💧 Water',       val: co2.water,       color: '#2ecc71' },
@@ -761,11 +761,11 @@
         setTimeout(() => document.querySelectorAll('.breakdown-bar').forEach(b => b.style.width = b.dataset.width + '%'), 200);
 
         const tips = [];
-        if (co2.electricity > 50) tips.push({ icon:'⚡', bg:'rgba(52,152,219,0.1)', color:'#3498db', title:'Switch to LED & Smart Sensors', desc:'Replace fluorescent lighting with LED. Install occupancy sensors to cut idle electricity by up to 30%.' });
-        if (co2.aircon > 30)      tips.push({ icon:'❄️', bg:'rgba(0,204,204,0.1)',   color:'#00cccc', title:'Optimise Air Conditioning',    desc:'Set AC to 24–26°C. Each degree higher saves ~6% energy. Use timers to auto-off after hours.' });
-        if (co2.transport > 20)   tips.push({ icon:'🚌', bg:'rgba(241,196,15,0.1)', color:'#f1c40f', title:'Encourage Carpooling & Transit', desc:'Promote carpooling or subsidise transit passes. Hybrid meetings cut commute days significantly.' });
-        if (co2.waste > 5)        tips.push({ icon:'♻️', bg:'rgba(231,76,60,0.1)',  color:'#e74c3c', title:'Implement Waste Segregation',    desc:'Separate organic, recyclable, and general waste. Composting organic waste cuts landfill CO₂ by up to 50%.' });
-        if (co2.water > 0.1)      tips.push({ icon:'💧', bg:'rgba(46,204,113,0.1)', color:'#2ecc71', title:'Install Low-Flow Fixtures',      desc:'Low-flow taps reduce water use by 40%, cutting both water and treatment emissions.' });
+        if (co2.electricity > 50) tips.push({ icon:'⚡', bg:'rgba(52,152,219,0.15)', color:'#3498db', title:'Switch to LED & Smart Sensors', desc:'Replace fluorescent lighting with LED. Install occupancy sensors to cut idle electricity by up to 30%.' });
+        if (co2.aircon > 30)      tips.push({ icon:'❄️', bg:'rgba(0,255,255,0.1)',   color:'#00ffff', title:'Optimise Air Conditioning',    desc:'Set AC to 24–26°C. Each degree higher saves ~6% energy. Use timers to auto-off after hours.' });
+        if (co2.transport > 20)   tips.push({ icon:'🚌', bg:'rgba(241,196,15,0.15)', color:'#f1c40f', title:'Encourage Carpooling & Transit', desc:'Promote carpooling or subsidise transit passes. Hybrid meetings cut commute days significantly.' });
+        if (co2.waste > 5)        tips.push({ icon:'♻️', bg:'rgba(231,76,60,0.15)',  color:'#e74c3c', title:'Implement Waste Segregation',    desc:'Separate organic, recyclable, and general waste. Composting organic waste cuts landfill CO₂ by up to 50%.' });
+        if (co2.water > 0.1)      tips.push({ icon:'💧', bg:'rgba(46,204,113,0.15)', color:'#2ecc71', title:'Install Low-Flow Fixtures',      desc:'Low-flow taps reduce water use by 40%, cutting both water and treatment emissions.' });
         tips.push({ icon:'🌱', bg:'rgba(46,204,113,0.1)', color:'#2ecc71', title:"Consider Green Building Certification", desc:"Malaysia's GreenRE or LEED certification guides systematic reduction and improves building value." });
 
         document.getElementById('tipsSection').innerHTML = tips.map(t => `

@@ -869,8 +869,8 @@ def create_app():
 
         city_name = get_nearest_city(lat, lng)
         try:
-            url = f"[https://api.open-meteo.com/v1/forecast?latitude=](https://api.open-meteo.com/v1/forecast?latitude=){lat}&longitude={lng}&current_weather=true&hourly=temperature_2m,relative_humidity_2m,weathercode,precipitation_probability&timezone=auto"
-            a_url = f"[https://air-quality-api.open-meteo.com/v1/air-quality?latitude=](https://air-quality-api.open-meteo.com/v1/air-quality?latitude=){lat}&longitude={lng}&current=us_aqi"
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&current_weather=true&hourly=temperature_2m,relative_humidity_2m,weathercode,precipitation_probability&timezone=auto"
+            a_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lng}&current=us_aqi"
 
             w_res = requests.get(url).json()
             a_res = requests.get(a_url).json()
