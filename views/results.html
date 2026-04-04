@@ -183,8 +183,6 @@
     $(document).ready(function() {
         rawWeatherData = {{ weather | tojson | safe }};
 
-        initSmartCalendar();
-
         const citySelector = document.getElementById('citySelector');
         if (citySelector && citySelector.options.length > 0) {
             currentCity = citySelector.options[0].value;
@@ -193,35 +191,44 @@
                 triggerCalendarFilter(); // Re-apply current calendar dates to new city
             });
         }
+
+        // Initialize the calendar and load initial chart
+        initSmartCalendar();
     });
 
-// ==========================================
+    // ==========================================
     // SMART CALENDAR LOGIC
     // ==========================================
     const availableDates = {{ available_dates | tojson | safe }};
 
-    // Initialize the Calendar (Renamed to fpInstance to match your existing code)
-     fpInstance = flatpickr("#smartCalendar", {
-        mode: "single", // Change to "range" if you want to allow picking two dates
-        dateFormat: "Y-m-d",
-        enable: availableDates,
+    function initSmartCalendar() {
+        fpInstance = flatpickr("#smartCalendar", {
+            mode: "single", // Change to "range" if you want to allow picking two dates
+            dateFormat: "Y-m-d",
+            enable: availableDates,
 
-        // FIX 1: Open to the most recent date so the month isn't blank
-        defaultDate: availableDates.length > 0 ? availableDates[availableDates.length - 1] : "today",
+            // FIX 1: Open to the most recent date so the month isn't blank
+            defaultDate: availableDates.length > 0 ? availableDates[availableDates.length - 1] : "today",
 
-        onChange: function(selectedDates, dateStr, instance) {
-            // FIX 2: Break the infinite loop! Do nothing if cleared.
-            if (!dateStr) return;
+            onChange: function(selectedDates, dateStr, instance) {
+                // FIX 2: Break the infinite loop! Do nothing if cleared.
+                if (!dateStr) return;
 
-            // Trigger your advanced filtering logic
-            triggerCalendarFilter(selectedDates);
-        }
-    });
+                // Trigger your advanced filtering logic
+                triggerCalendarFilter(selectedDates);
+            }
+        });
+
+        // FIX 4: Load the chart instantly on page load!
+        triggerCalendarFilter([]);
+    }
 
     // Updated Clear Calendar Function
     function clearCalendar() {
-        // FIX 3: false stops the infinite loop crash!
-        fpInstance.clear(false);
+        if (fpInstance) {
+            // FIX 3: false stops the infinite loop crash!
+            fpInstance.clear(false);
+        }
 
         // Reset the table and chart by triggering the filter with an empty array
         triggerCalendarFilter([]);
@@ -236,11 +243,11 @@
         if (dates.length === 1) {
             startTime = new Date(dates[0]).setHours(0,0,0,0);
             endTime = new Date(dates[0]).setHours(23,59,59,999);
-            labelStr = fpInstance.input.value;
+            labelStr = fpInstance ? fpInstance.input.value : dates[0];
         } else if (dates.length === 2) {
             startTime = new Date(dates[0]).setHours(0,0,0,0);
             endTime = new Date(dates[1]).setHours(23,59,59,999);
-            labelStr = fpInstance.input.value;
+            labelStr = fpInstance ? fpInstance.input.value : "Date Range";
         }
 
         // Filter Table Rows
