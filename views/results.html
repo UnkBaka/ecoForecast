@@ -195,47 +195,40 @@
         }
     });
 
-    // ==========================================
+// ==========================================
     // SMART CALENDAR LOGIC
     // ==========================================
-    function initSmartCalendar() {
-        const validDates = new Set();
-        document.querySelectorAll('.time-row').forEach(tr => {
-            const timeText = tr.querySelector('td:first-child')?.textContent.trim();
-            if (timeText) {
-                validDates.add(timeText.split(' ')[0]);
-            }
-        });
+    const availableDates = {{ available_dates | tojson | safe }};
 
-        const enabledDates = Array.from(validDates).sort();
+    // Initialize the Calendar (Renamed to fpInstance to match your existing code)
+    const fpInstance = flatpickr("#smartCalendar", {
+        mode: "single", // Change to "range" if you want to allow picking two dates
+        dateFormat: "Y-m-d",
+        enable: availableDates,
 
-        fpInstance = flatpickr("#smartCalendar", {
-            mode: "range",
-            dateFormat: "Y-m-d",
-            enable: enabledDates, // GREYS OUT ANY DATE WITHOUT DATA
-            onChange: function(selectedDates, dateStr, instance) {
-                if (selectedDates.length > 0) {
-                    triggerCalendarFilter(selectedDates);
-                } else {
-                    clearCalendar();
-                }
-            }
-        });
+        // FIX 1: Open to the most recent date so the month isn't blank
+        defaultDate: availableDates.length > 0 ? availableDates[availableDates.length - 1] : "today",
 
-        // Auto-select the latest date by default
-        if (enabledDates.length > 0) {
-            const latest = enabledDates[enabledDates.length - 1];
-            fpInstance.setDate([latest, latest]);
-            triggerCalendarFilter(fpInstance.selectedDates);
+        onChange: function(selectedDates, dateStr, instance) {
+            // FIX 2: Break the infinite loop! Do nothing if cleared.
+            if (!dateStr) return;
+
+            // Trigger your advanced filtering logic
+            triggerCalendarFilter(selectedDates);
         }
-    }
+    });
 
+    // Updated Clear Calendar Function
     function clearCalendar() {
-        if (fpInstance) fpInstance.clear();
+        // FIX 3: false stops the infinite loop crash!
+        fpInstance.clear(false);
+
+        // Reset the table and chart by triggering the filter with an empty array
         triggerCalendarFilter([]);
     }
 
-    function triggerCalendarFilter(dates = fpInstance ? fpInstance.selectedDates : []) {
+    // Your Advanced Filtering Function
+    function triggerCalendarFilter(dates = []) {
         let startTime = 0;
         let endTime = Infinity;
         let labelStr = 'All Available Dates';
@@ -256,6 +249,7 @@
 
             group.querySelectorAll('.time-row').forEach(tr => {
                 const timeText = tr.querySelector('td:first-child')?.textContent.trim() || '';
+                // Handle Safari date format quirks
                 const rowDate = new Date(timeText.replace(/-/g, '/'));
                 const rowTime = rowDate.getTime();
 
@@ -270,7 +264,7 @@
         });
 
         // Update Chart
-        if (currentCity) {
+        if (typeof currentCity !== 'undefined' && currentCity) {
             loadChart(currentCity, startTime === 0 ? null : labelStr);
         }
     }
