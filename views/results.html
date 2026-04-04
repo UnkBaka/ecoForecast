@@ -201,7 +201,7 @@
     const availableDates = {{ available_dates | tojson | safe }};
 
     // Initialize the Calendar (Renamed to fpInstance to match your existing code)
-    const fpInstance = flatpickr("#smartCalendar", {
+     fpInstance = flatpickr("#smartCalendar", {
         mode: "single", // Change to "range" if you want to allow picking two dates
         dateFormat: "Y-m-d",
         enable: availableDates,
