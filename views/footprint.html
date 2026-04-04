@@ -454,6 +454,24 @@
     let currentBType = null;
     let searchTimeout = null;
 
+    // --- LOCATION AWARENESS FOR SMART SEARCH ---
+    let userLat = null;
+    let userLon = null;
+
+    // Ask the browser for the user's location to show nearby results first
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                userLat = position.coords.latitude;
+                userLon = position.coords.longitude;
+                console.log("📍 Location secured! Searches will now prioritize nearby places.");
+            },
+            (error) => {
+                console.log("Location access denied or unavailable. Using standard search.");
+            }
+        );
+    }
+
     const FACTORS = { electricity: 0.694, aircon: 0.52, transport: 0.192, waste: 0.5, water: 0.00034 };
     const BENCHMARKS = { office: 1800, campus: 3200 };
 
@@ -503,7 +521,7 @@
         document.querySelectorAll('.search-results-dropdown').forEach(d => d.style.display = 'none');
     });
 
-    // --- SEARCH BAR LOGIC (Unrestricted Live Search) ---
+    // --- SEARCH BAR LOGIC (Unrestricted & Location-Aware) ---
     function handleSearch(val, dropdownId, isManual) {
         clearTimeout(searchTimeout);
         if (val.length < 3) { document.getElementById(dropdownId).style.display = 'none'; return; }
@@ -521,9 +539,15 @@
     }
 
     function doSearch(query, dropdownId, isManual) {
-        // We removed the aggressive filtering and increased the limit to 8
-        // This gives you WAY more options straight from the live OSM database.
-        fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&countrycodes=my&limit=8&addressdetails=1&extratags=1`)
+        // Base URL for OSM search
+        let url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&countrycodes=my&limit=8&addressdetails=1&extratags=1`;
+
+        // 🌟 THE MAGIC: Tell the database to prioritize places near the user's location!
+        if (userLat && userLon) {
+            url += `&lat=${userLat}&lon=${userLon}`;
+        }
+
+        fetch(url)
             .then(r => r.json())
             .then(data => {
                 const dropdown = document.getElementById(dropdownId);

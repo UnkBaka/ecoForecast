@@ -256,8 +256,49 @@ def create_app():
         except Exception as e:
             if "locked" in str(e).lower():
                 return jsonify({
-                                   "error": "Database is currently syncing data for another city. Please wait 10 seconds and try again."}), 500
+                    "error": "Database is currently syncing data for another city. Please wait 10 seconds and try again."}), 500
             return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/city_stats/<string:city_name>')
+    def city_stats(city_name):
+        try:
+            conn = get_connection()
+            c = conn.cursor()
+
+            # Get the city id
+            c.execute("SELECT id FROM locations WHERE name = ?", (city_name,))
+            city = c.fetchone()
+
+            if not city:
+                conn.close()
+                return jsonify({'error': 'City not found'}), 404
+
+            city_id = city[0]
+
+            # DATE(timestamp) ensures we only count unique days
+            c.execute("""
+                SELECT 
+                    MIN(timestamp) as first_added,
+                    COUNT(DISTINCT DATE(timestamp)) as days_of_data,
+                    COUNT(*) as total_records
+                FROM weather_data 
+                WHERE location_id = ?
+            """, (city_id,))
+            stats = c.fetchone()
+            conn.close()
+
+            first_added = stats[0][:10] if stats[0] else "No data yet"
+            days_of_data = stats[1] if stats[1] else 0
+            total_records = stats[2] if stats[2] else 0
+
+            return jsonify({
+                'name': city_name,
+                'first_added': first_added,
+                'days_of_data': days_of_data,
+                'total_records': total_records
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/analysis')
     def analysis_page():
@@ -604,7 +645,7 @@ def create_app():
             if user_lat and user_lng:
                 try:
                     rev_url = (
-                        f"https://nominatim.openstreetmap.org/reverse"
+                        f"[https://nominatim.openstreetmap.org/reverse](https://nominatim.openstreetmap.org/reverse)"
                         f"?lat={user_lat}&lon={user_lng}&format=json&zoom=16&addressdetails=1"
                     )
                     rev_res = requests.get(rev_url, timeout=4, headers={"User-Agent": "EcoForecast/1.0"}).json()
@@ -630,11 +671,11 @@ def create_app():
             if real_temp is None and user_lat and user_lng:
                 try:
                     w_fb = requests.get(
-                        f"https://api.open-meteo.com/v1/forecast?latitude={user_lat}&longitude={user_lng}"
+                        f"[https://api.open-meteo.com/v1/forecast?latitude=](https://api.open-meteo.com/v1/forecast?latitude=){user_lat}&longitude={user_lng}"
                         f"&current_weather=true&hourly=precipitation_probability&timezone=auto", timeout=5
                     ).json()
                     a_fb = requests.get(
-                        f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={user_lat}&longitude={user_lng}"
+                        f"[https://air-quality-api.open-meteo.com/v1/air-quality?latitude=](https://air-quality-api.open-meteo.com/v1/air-quality?latitude=){user_lat}&longitude={user_lng}"
                         f"&current=us_aqi&timezone=auto", timeout=5
                     ).json()
                     cur_hour = datetime.now().hour
@@ -812,8 +853,8 @@ def create_app():
 
         city_name = get_nearest_city(lat, lng)
         try:
-            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&current_weather=true&hourly=temperature_2m,relative_humidity_2m,weathercode,precipitation_probability&timezone=auto"
-            a_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lng}&current=us_aqi"
+            url = f"[https://api.open-meteo.com/v1/forecast?latitude=](https://api.open-meteo.com/v1/forecast?latitude=){lat}&longitude={lng}&current_weather=true&hourly=temperature_2m,relative_humidity_2m,weathercode,precipitation_probability&timezone=auto"
+            a_url = f"[https://air-quality-api.open-meteo.com/v1/air-quality?latitude=](https://air-quality-api.open-meteo.com/v1/air-quality?latitude=){lat}&longitude={lng}&current=us_aqi"
 
             w_res = requests.get(url).json()
             a_res = requests.get(a_url).json()
