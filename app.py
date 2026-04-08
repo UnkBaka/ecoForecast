@@ -359,69 +359,81 @@ def create_app():
         try:
             cur = conn.cursor()
 
-            # 1. Fetch the exact list of all cities (Should be 10)
+            # 1. Fetch the exact list of all cities
             cities = [row[0] for row in cur.execute("SELECT name FROM locations ORDER BY name ASC").fetchall()]
 
-            # 2. Fetch the actual database predictions
-            query = """
-                SELECT 
-                    l.name as city,
-                    p.predicted_value,          
-                    w.temperature as actual_value, 
-                    p.timestamp as pred_time,   
-                    w.weather_code,             
-                    p.predicted_weather_code,
-                    p.rain_chance    
-                FROM predictions p
-                JOIN locations l ON p.location_id = l.id
-                LEFT JOIN weather_data w ON p.location_id = w.location_id 
-                                        AND w.timestamp = p.timestamp
-                WHERE p.label = 'forecast'
+            # 2. Fetch AI Predictions separately
+            pred_query = """
+                SELECT l.name, p.predicted_value, p.timestamp, p.predicted_weather_code, p.rain_chance    
+                FROM predictions p JOIN locations l ON p.location_id = l.id WHERE p.label = 'forecast'
             """
-            raw_data = cur.execute(query).fetchall()
+            predictions = cur.execute(pred_query).fetchall()
 
-            if not raw_data:
-                return render_template('results.html', weather=[])
+            # 3. Fetch Actual Weather separately
+            weather_query = """
+                SELECT l.name, w.temperature, w.timestamp, w.weather_code 
+                FROM weather_data w JOIN locations l ON w.location_id = l.id
+            """
+            actuals = cur.execute(weather_query).fetchall()
 
-            # 3. Organize the raw data into a dictionary grouped by (Hour, City)
             record_dict = {}
             min_time = None
 
-            for row in raw_data:
+            # Process AI Predictions
+            for row in predictions:
                 city = row[0]
-                # Convert DB string to a Python datetime object safely
                 try:
-                    dt = datetime.strptime(row[3][:19], '%Y-%m-%d %H:%M:%S')
+                    dt = datetime.strptime(row[2][:19], '%Y-%m-%d %H:%M:%S')
                 except ValueError:
                     continue
-
-                # Round down to the top of the hour (e.g., 16:28 -> 16:00)
                 hour_dt = dt.replace(minute=0, second=0, microsecond=0)
 
-                # Find the oldest record to know where to start our timeline
                 if min_time is None or hour_dt < min_time:
                     min_time = hour_dt
 
-                # Save to dictionary
                 record_dict[(hour_dt, city)] = {
                     'ai_temp': row[1],
-                    'act_temp': row[2],
-                    'act_weather': row[4],
-                    'ai_weather': row[5],
-                    'rain_chance': row[6]
+                    'act_temp': None,
+                    'act_weather': None,
+                    'ai_weather': row[3],
+                    'rain_chance': row[4]
                 }
 
-            # 4. Determine the timeline boundaries
-            if min_time is None:
-                min_time = datetime.now().replace(minute=0, second=0, microsecond=0)
+            # Process Actual Weather (Merge them safely!)
+            for row in actuals:
+                city = row[0]
+                try:
+                    dt = datetime.strptime(row[2][:19], '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    continue
+                hour_dt = dt.replace(minute=0, second=0, microsecond=0)
 
+                if min_time is None or hour_dt < min_time:
+                    min_time = hour_dt
+
+                # If AI prediction is missing, create a new entry with just actual weather
+                if (hour_dt, city) not in record_dict:
+                    record_dict[(hour_dt, city)] = {
+                        'ai_temp': None,
+                        'act_temp': row[1],
+                        'act_weather': row[3],
+                        'ai_weather': None,
+                        'rain_chance': None
+                    }
+                # If AI prediction exists, gracefully combine them!
+                else:
+                    record_dict[(hour_dt, city)]['act_temp'] = row[1]
+                    record_dict[(hour_dt, city)]['act_weather'] = row[3]
+
+            if not record_dict:
+                return render_template('results.html', weather=[], available_dates=[])
+
+            # 4. Determine timeline boundaries
             max_time = datetime.now().replace(minute=0, second=0, microsecond=0)
-
-            # Safety catch for timezone differences
             if max_time < min_time:
                 max_time = min_time
 
-            # 5. Generate the perfect 10-city hourly grid (Newest to Oldest)
+            # 5. Generate the perfect 10-city hourly grid
             final_data = []
             current_time = max_time
 
@@ -449,9 +461,7 @@ def create_app():
                             data['rain_chance']
                         ))
                     else:
-                        final_data.append((
-                            city, None, None, time_str, None, None, None
-                        ))
+                        final_data.append((city, None, None, time_str, None, None, None))
 
                 current_time -= timedelta(hours=1)
 
