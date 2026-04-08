@@ -277,6 +277,32 @@
                 padding-bottom: env(safe-area-inset-bottom, 12px); /* Prevents it from hiding under iPhone home bars */
             }
     }
+
+    /* Custom Forecast Buttons */
+        .btn-forecast {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: #ffffff !important;
+            border: none;
+            border-radius: 30px;
+            padding: 8px 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+            margin: 0 5px;
+        }
+
+        .btn-forecast:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
+            color: #ffffff;
+        }
+
+        /* Active state for when a user clicks it */
+        .btn-forecast.active {
+            background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+            box-shadow: 0 4px 15px rgba(44, 62, 80, 0.4);
+        }
 </style>
 
 </head>
@@ -341,10 +367,10 @@
                         <strong style="color: #2980b9;">EcoForecast AI Insight:</strong>
                         <p id="ai_summary_text" style="margin: 5px 0 0 0; font-style: italic;">Analyzing weather patterns...</p>
                     </div>
-                    <div class="forecast-nav" style="display: flex; justify-content: center; gap: 10px; margin: 15px 0;">
-                        <button onclick="updateForecastView('short', event)" class="btn-time">6 Hours</button>
-                        <button onclick="updateForecastView('medium', event)" class="btn-time">24 Hours</button>
-                        <button onclick="updateForecastView('long', event)" class="btn-time">7 Days</button>
+                        <div class="d-flex justify-content-center mb-4">
+                            <button class="btn-forecast active" onclick="updateForecast('6h', this)">6 Hrs</button>
+                            <button class="btn-forecast" onclick="updateForecast('24h', this)">24 Hrs</button>
+                            <button class="btn-forecast" onclick="updateForecast('7d', this)">7 Days</button>
                     </div>
                     <div style="height: 300px; position: relative;">
                         <canvas id="forecastChartCanvas"></canvas>
@@ -873,31 +899,49 @@ window.updateForecastView = function(range, e) {
     };
 
     function renderHistoryUI(data, container) {
-        let html = "";
+    let html = "";
 
-        if (data.length === 0) {
-            container.innerHTML = "<div style='text-align:center; opacity:0.6; padding: 20px;'>No records found.</div>";
-            return;
-        }
-
-        data.forEach(row => {
-        html += `
-        <div style="display:flex; justify-content:space-between; align-items:center;
-                    background:rgba(0,0,0,0.2); padding:15px; margin-bottom:10px;
-                    border-radius:12px; border-left:4px solid #3498db;
-                    border-top:1px solid rgba(255,255,255,0.05);
-                    border-right:1px solid rgba(255,255,255,0.05);
-                    border-bottom:1px solid rgba(255,255,255,0.05);">
-            <div style="color:#3498db; font-weight:bold; font-size:1.05rem; letter-spacing:0.5px;">
-                ${row.date}
-            </div>
-            <div style="font-size:1.4rem; font-weight:800; color:white;">
-                ${row.temp}°C
-            </div>
-        </div>`;
-    });
-        container.innerHTML = html;
+    if (data.length === 0) {
+        container.innerHTML = "<div style='text-align:center; opacity:0.6; padding: 20px;'>No records found.</div>";
+        return;
     }
+
+    // 1. Get exact "today" at midnight for comparison
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    data.forEach(row => {
+        // 2. Convert the row's date (e.g. "2026-04-10") to a Javascript Date object
+        // (Replacing hyphens with slashes prevents Safari browser bugs)
+        const recordDate = new Date(row.date.replace(/-/g, '/'));
+        recordDate.setHours(0, 0, 0, 0);
+
+        // 3. THE FIX: Only add the HTML if the record is TODAY or in the PAST
+        if (recordDate <= today) {
+            html += `
+            <div style="display:flex; justify-content:space-between; align-items:center;
+                        background:rgba(0,0,0,0.2); padding:15px; margin-bottom:10px;
+                        border-radius:12px; border-left:4px solid #3498db;
+                        border-top:1px solid rgba(255,255,255,0.05);
+                        border-right:1px solid rgba(255,255,255,0.05);
+                        border-bottom:1px solid rgba(255,255,255,0.05);">
+                <div style="color:#3498db; font-weight:bold; font-size:1.05rem; letter-spacing:0.5px;">
+                    ${row.date}
+                </div>
+                <div style="font-size:1.4rem; font-weight:800; color:white;">
+                    ${row.temp}°C
+                </div>
+            </div>`;
+        }
+    });
+
+    // 4. Just in case the database ONLY had future dates, show a friendly message
+    if (html === "") {
+        html = "<div style='text-align:center; opacity:0.6; padding: 20px;'>No past records available yet. Check back tomorrow!</div>";
+    }
+
+    container.innerHTML = html;
+}
 
     // Load predefined cities
     {% for city in cities %}
