@@ -130,20 +130,24 @@
                                         {% for row in records %}
                                         <tr class="time-row">
                                             <td class="text-start ps-4 text-nowrap time-cell"><strong>{{ row[3] }}</strong></td>
+
                                             <td>{% if row[2] != None %}{{ row[2] }}°C{% else %}<span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>{% endif %}</td>
+
                                             <td>
                                                 {% if row[1] != None %}
                                                     <span class="badge rounded-pill bg-primary px-3 py-2" style="width: 80px;">{{ row[1] }}°C</span>
                                                 {% else %}
-                                                    <span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>
+                                                    <span class="badge rounded-pill bg-secondary text-white px-3 py-2" style="width: 100px;">AI Offline 💤</span>
                                                 {% endif %}
                                             </td>
+
                                             <td>{% if row[4] != None %}{{ row[4] }}{% else %}<span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>{% endif %}</td>
+
                                             <td>
                                                 {% if row[5] != None %}
                                                     <span class="badge bg-info text-dark px-3 py-2 text-wrap d-inline-flex align-items-center justify-content-center" style="width: 200px; min-height: 40px; line-height: 1.4;">{{ row[5] }}</span>
                                                 {% else %}
-                                                    <span class="text-muted fst-italic" style="font-size: 0.85rem;">Pending...</span>
+                                                    <span class="badge bg-secondary text-white px-3 py-2 d-inline-flex align-items-center justify-content-center" style="width: 200px; min-height: 40px; line-height: 1.4;">Missed Prediction 💤</span>
                                                 {% endif %}
                                             </td>
                                         </tr>
