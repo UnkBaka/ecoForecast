@@ -367,10 +367,10 @@
                         <strong style="color: #2980b9;">EcoForecast AI Insight:</strong>
                         <p id="ai_summary_text" style="margin: 5px 0 0 0; font-style: italic;">Analyzing weather patterns...</p>
                     </div>
-                        <div class="d-flex justify-content-center mb-4">
-                            <button class="btn-forecast active" onclick="updateForecast('6h', this)">6 Hrs</button>
-                            <button class="btn-forecast" onclick="updateForecast('24h', this)">24 Hrs</button>
-                            <button class="btn-forecast" onclick="updateForecast('7d', this)">7 Days</button>
+                    <div class="d-flex justify-content-center mb-4">
+                        <button class="btn-forecast active" onclick="updateForecastView('short', this)">6 Hrs</button>
+                        <button class="btn-forecast" onclick="updateForecastView('medium', this)">24 Hrs</button>
+                        <button class="btn-forecast" onclick="updateForecastView('long', this)">7 Days</button>
                     </div>
                     <div style="height: 300px; position: relative;">
                         <canvas id="forecastChartCanvas"></canvas>
@@ -612,8 +612,10 @@ window.updateForecastView = function(range, e) {
         }
     });
 
-    document.querySelectorAll('.btn-time').forEach(b => b.style.background = 'rgba(255,255,255,0.1)');
-    if (e && e.target) e.target.style.background = 'rgba(52,152,219,0.4)';
+    document.querySelectorAll('.btn-forecast').forEach(b => b.classList.remove('active'));
+    if (e) {
+        e.classList.add('active');
+    }
 };
 
 
