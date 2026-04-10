@@ -115,34 +115,24 @@ def create_app():
     def contact():
         return render_template('contact.html')
 
-    # ─── ADMIN AUTHENTICATION ROUTES ────────────────────────────────
-    @app.route('/login', methods=['GET', 'POST'])
-    def login():
-        # If already logged in, go straight to dashboard
-        if session.get('admin_logged_in'):
+    # ─── HIDDEN ADMIN AUTHENTICATION ROUTES ─────────────────────────
+
+    # 1. The Secret URL Entry Point
+    @app.route('/<secret_key>/admin')
+    def secret_admin_entry(secret_key):
+        # 'eco2026' acts as your hidden password directly in the URL
+        if secret_key == 'eco2026':
+            session['admin_logged_in'] = True
             return redirect(url_for('admin_page'))
-
-        error = None
-        if request.method == 'POST':
-            # Check password
-            if request.form.get('password') == 'eco2026':
-                session['admin_logged_in'] = True
-                return redirect(url_for('admin_page'))
-            else:
-                error = "Invalid credentials. Access Denied."
-
-        return render_template('login.html', error=error)
-
-    @app.route('/logout')
-    def logout():
-        session.pop('admin_logged_in', None)
-        return redirect(url_for('login'))
+        else:
+            # If they type the wrong secret key, send them to the home page invisibly
+            return redirect(url_for('index'))
 
     @app.route('/admin')
     def admin_page():
-        # SECURITY CHECK: Kick user back to login if no active session
+        # SECURITY CHECK: Kick user back to home if they didn't go through the secret URL
         if not session.get('admin_logged_in'):
-            return redirect(url_for('login'))
+            return redirect(url_for('index'))
 
         conn = get_connection()
         cur = conn.cursor()
@@ -151,6 +141,12 @@ def create_app():
         conn.close()
 
         return render_template('admin.html', cities=cities)
+
+    @app.route('/logout')
+    def logout():
+        # Clear the session and drop them at the home page
+        session.pop('admin_logged_in', None)
+        return redirect(url_for('index'))
 
     @app.route('/admin/add_city', methods=['POST'])
     def add_new_city():
