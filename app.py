@@ -4,7 +4,8 @@ import sqlite3
 import pandas as pd
 import requests
 import threading
-from groq import Groq  # NEW IMPORT
+from groq import Groq
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
 from tensorflow.keras.models import load_model
 from datetime import datetime, timedelta
@@ -50,13 +51,16 @@ WEATHER_DESCRIPTIONS = {
     99: "Thunderstorm with heavy hail ⛈️🧊"
 }
 
-client = Groq(api_key="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")
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "models", "ecoForecast.db")
 print(f"✅ Database connected at: {DB_PATH}")
 
 CITY_FILE = 'cities.json'
+
+load_dotenv()
+
+my_api_key = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=my_api_key)
 
 if not os.path.exists(CITY_FILE):
     default_cities = [
