@@ -35,18 +35,7 @@ def init_db():
     conn = get_connection()
     cur  = conn.cursor()
 
-    # 1. users
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            username   TEXT    UNIQUE NOT NULL,
-            password   TEXT    NOT NULL,
-            role       TEXT    DEFAULT 'user',
-            created_at TEXT    DEFAULT (datetime('now'))
-        )
-    """)
-
-    # 2. locations
+    # 1. locations
     cur.execute("""
         CREATE TABLE IF NOT EXISTS locations (
             id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +47,7 @@ def init_db():
         )
     """)
 
-    # 3. weather_data  — includes all columns used by aqi_controller
+    # 2. weather_data  — includes all columns used by aqi_controller
     cur.execute("""
         CREATE TABLE IF NOT EXISTS weather_data (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +68,7 @@ def init_db():
         )
     """)
 
-    # 4. aqi_data
+    # 3. aqi_data
     cur.execute("""
         CREATE TABLE IF NOT EXISTS aqi_data (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +81,7 @@ def init_db():
         )
     """)
 
-    # 5. weather_history
+    # 4. weather_history
     cur.execute("""
         CREATE TABLE IF NOT EXISTS weather_history (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,7 +93,7 @@ def init_db():
         )
     """)
 
-    # 6. models
+    # 5. models
     cur.execute("""
         CREATE TABLE IF NOT EXISTS models (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,7 +107,7 @@ def init_db():
         )
     """)
 
-    # 7. predictions  — rain_chance and predicted_weather_code included from the start
+    # 6. predictions  — rain_chance and predicted_weather_code included from the start
     cur.execute("""
         CREATE TABLE IF NOT EXISTS predictions (
             id                     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,21 +123,7 @@ def init_db():
         )
     """)
 
-    # 8. feedback
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS feedback (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id       INTEGER,
-            prediction_id INTEGER,
-            rating        INTEGER CHECK (rating BETWEEN 1 AND 5),
-            comment       TEXT,
-            created_at    TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY (user_id)       REFERENCES users(id),
-            FOREIGN KEY (prediction_id) REFERENCES predictions(id)
-        )
-    """)
-
-    # 9. logs
+    # 7. logs
     cur.execute("""
         CREATE TABLE IF NOT EXISTS logs (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,

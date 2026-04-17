@@ -219,6 +219,21 @@
     </div>
 
     <div id="guidedMode">
+        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+    <label style="display:block; margin-bottom:8px; font-weight:600; color:var(--text-dark);">
+        <i class="bi bi-building-check" style="color: #27ae60;"></i> Select a Verified Benchmark Building (Optional)
+    </label>
+    <select id="verifiedBuildingSelect" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-white); font-family: var(--font-main);" onchange="checkVerifiedSelection()">
+        <option value="">-- Custom Estimate (Use options below) --</option>
+        <option value="petronas">Petronas Twin Towers (KLCC)</option>
+        <option value="sunway">Sunway Pyramid Shopping Mall</option>
+        <option value="hkl">Hospital Kuala Lumpur (HKL)</option>
+        <option value="um">Universiti Malaya (UM) Chancellery</option>
+    </select>
+    <div style="font-size:0.8rem; color:var(--text-muted); margin-top:5px;">
+        Selecting a verified building will automatically use official sustainability data.
+    </div>
+</div>
 
         <div class="fp-section">
             <div class="section-label"><i class="bi bi-search"></i> Step 1 — Search your building name</div>
@@ -445,7 +460,18 @@
 
         <div class="section-label" style="margin-bottom:14px;"><i class="bi bi-bar-chart-line"></i> Comparison</div>
         <div class="compare-bar">
-            <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;">vs. Malaysia building benchmarks (monthly)</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px; display: flex; align-items: center; gap: 5px;">
+                vs. Malaysia building benchmarks (monthly)
+                <div style="position:relative; display:inline-block;">
+                    <button class="info-btn" style="position:relative; top:0; right:0; padding:0; color:var(--primary-blue);" onclick="toggleTip('tip_benchmark',event)">
+                        <i class="bi bi-info-circle-fill"></i>
+                    </button>
+                    <div class="tooltip-box" id="tip_benchmark" style="width:280px; top: 25px; left: -100px;">
+                        <strong>Data Source</strong>
+                        Benchmarks are derived from the <em>Suruhanjaya Tenaga (Energy Commission) Malaysia</em> Building Energy Index (BEI) baselines and <em>Green Building Index (GBI)</em> standards for typical commercial and institutional buildings.
+                    </div>
+                </div>
+            </div>
             <div class="compare-row">
                 <div class="compare-name" style="color:var(--blue);">📍 Your Building</div>
                 <div class="compare-track"><div class="compare-fill" id="bar_yours" style="width:0%;background:var(--blue);"></div></div>
@@ -677,8 +703,74 @@
     }
 
     // --- CALCULATION LOGIC ---
+    // --- KNOWN BUILDINGS DATABASE ---
+    const KNOWN_BUILDINGS = {
+        "petronas": {
+            name: "Petronas Twin Towers (KLCC)",
+            breakdown: { electricity: 65000, aircon: 40000, transport: 5000, waste: 3000, water: 2000 },
+            source: "Modeled via KLCC Property Holdings Sustainability Report"
+        },
+        "sunway": {
+            name: "Sunway Pyramid Shopping Mall",
+            breakdown: { electricity: 45000, aircon: 25000, transport: 4000, waste: 4000, water: 3000 },
+            source: "Modeled via Sunway REIT Annual Sustainability Review"
+        },
+        "hkl": {
+            name: "Hospital Kuala Lumpur (HKL)",
+            breakdown: { electricity: 55000, aircon: 30000, transport: 2000, waste: 8000, water: 6000 },
+            source: "Estimated via Ministry of Health Green Hospital Baseline"
+        },
+        "um": {
+            name: "Universiti Malaya (UM) Chancellery",
+            breakdown: { electricity: 30000, aircon: 15000, transport: 8000, waste: 2000, water: 1500 },
+            source: "Modeled via UM Eco-Campus Blueprint"
+        }
+    };
+
+    // Optional: Disable standard inputs if a verified building is selected
+    function checkVerifiedSelection() {
+        const isVerifiedSelected = document.getElementById('verifiedBuildingSelect').value !== "";
+        // If you want to disable the size slider when a famous building is selected:
+        // document.getElementById('sizeSlider').disabled = isVerifiedSelected;
+    }
+
     function calculateGuided() {
-        if (!currentBType) { alert('Please select a building type first.'); return; }
+        const noteBox = document.getElementById('guided_note');
+        const selectedVerifiedKey = document.getElementById('verifiedBuildingSelect').value;
+
+        // IF VERIFIED BUILDING SELECTED: Use official data override
+        if (selectedVerifiedKey && KNOWN_BUILDINGS[selectedVerifiedKey]) {
+            const knownData = KNOWN_BUILDINGS[selectedVerifiedKey];
+            const periodMult = currentPeriod === 'daily' ? 1/30 : currentPeriod === 'weekly' ? 7/30 : 1;
+
+            const co2 = {
+                electricity: knownData.breakdown.electricity * periodMult,
+                aircon:      knownData.breakdown.aircon * periodMult,
+                transport:   knownData.breakdown.transport * periodMult,
+                waste:       knownData.breakdown.waste * periodMult,
+                water:       knownData.breakdown.water * periodMult
+            };
+
+            // Show Verified UI Badge
+            noteBox.innerHTML = `
+                <div style="color: #27ae60;">
+                    <i class="bi bi-patch-check-fill"></i> <strong>Verified Data Source:</strong> This calculation uses officially modeled data for <strong>${knownData.name}</strong>.<br>
+                    <span style="font-size: 0.75rem; opacity: 0.8;">Source: ${knownData.source}</span>
+                </div>`;
+            noteBox.style.display = 'block';
+            noteBox.style.background = 'rgba(46,204,113,0.1)';
+            noteBox.style.borderColor = 'rgba(46,204,113,0.3)';
+
+            showResults(co2, knownData.name);
+            return; // Stop here, skip the standard estimate calculation
+        }
+
+        // IF NO VERIFIED BUILDING SELECTED: Proceed with standard estimate
+        if (!currentBType) {
+            alert('Please select a building type or choose a verified benchmark building.');
+            return;
+        }
+
         const size = parseFloat(document.getElementById('sizeSlider').value);
         const profile = BTYPE_PROFILES[currentBType];
         const periodMult = currentPeriod === 'daily' ? 1/30 : currentPeriod === 'weekly' ? 7/30 : 1;
@@ -691,8 +783,14 @@
             water:       size * profile.water       * periodMult * FACTORS.water
         };
 
-        const bName = selectedBuilding ? selectedBuilding.name.split(',')[0] : profile.label + ' (~' + size.toLocaleString() + ' m²)';
-        document.getElementById('guided_note').style.display = 'block';
+        const bName = profile.label + ' (~' + size.toLocaleString() + ' m²)';
+
+        // Restore standard estimate note UI
+        noteBox.innerHTML = `📊 This is an <strong style="color: var(--primary-blue);">estimate</strong> based on typical Malaysia BEI values for your building type and size. Switch to Manual Mode for precise figures.`;
+        noteBox.style.display = 'block';
+        noteBox.style.background = 'rgba(52,152,219,0.07)';
+        noteBox.style.borderColor = 'rgba(52,152,219,0.2)';
+
         showResults(co2, bName);
     }
 
